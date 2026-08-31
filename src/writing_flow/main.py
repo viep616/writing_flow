@@ -468,19 +468,30 @@ def _save_review_record(round_no: int, parsed: dict, gate: dict) -> None:
 
 
 # ---------------------------------------------------------------- 入口
+def _export_plot() -> None:
+    """flow.plot() 写入临时目录并返回 html 路径；复制产物到 output/（html/js/css 三件套）。"""
+    import shutil
+
+    src = Path(PaperFlow().plot("flow_plot", show=False))
+    for f in src.parent.glob(src.name + "*"):
+        target = OUTPUT_DIR / ("flow_plot.html" if f.name == src.name else f.name)
+        shutil.copyfile(f, target)
+    print(f"[流程图] {OUTPUT_DIR / 'flow_plot.html'}")
+
+
 def kickoff():
     OUTPUT_DIR.mkdir(exist_ok=True)
-    flow = PaperFlow()
     try:
-        flow.plot(str(OUTPUT_DIR / "flow_plot"))
+        _export_plot()
     except Exception as exc:  # 流程图失败不阻塞
         print(f"[提示] 流程图导出跳过：{exc}")
+    flow = PaperFlow()
     flow.kickoff()
 
 
 def plot():
     OUTPUT_DIR.mkdir(exist_ok=True)
-    PaperFlow().plot(str(OUTPUT_DIR / "flow_plot"))
+    _export_plot()
 
 
 if __name__ == "__main__":
