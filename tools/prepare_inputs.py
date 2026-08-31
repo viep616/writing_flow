@@ -1,0 +1,118 @@
+"""prepare_inputs · 输入判道与素材标准化（纯代码，零 LLM）
+
+判道优先级：data/upstream_handoff/（上游交接） > 独立素材（叙事/数据表） > data/ 下已有初稿。
+产物形态分流：叙事/数据表 → standalone（全新成稿）；已成初稿 → refine（精修升级）。
+输出 SOURCES_MANIFEST.json：每份素材的路径与 SHA256 指纹，是后续所有审计的基准输入。
+"""
+
+import hashlib
+import json
+import re
+import sys
+from datetime import datetime
+from pathlib import Path
+
+MANIFEST_NAME = "SOURCES_MANIFEST.json"
+
+
+def _sha16(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()[:16]
+
+
+def _is_handoff_name(name: str) -> bool:
+    return name.startswith("HANDOFF")
+
+
+def _form_of(name: str) -> str:
+    low = name.lower()
+    if "narrative" in low or "叙事" in name:
+        return "narrative"
+    if "vasp" in low or "数据" in name:
+        return "data"
+    return "draft"
+
+
+def _latest(files: list) -> Path:
+    return max(files, key=lambda p: p.stat().st_mtime)
+
+
+def _source_id_from_handoff(handoff_md: Path) -> str:
+    try:
+        text = handoff_md.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    m = re.search(r"state\.?id[:：]?\s*`?([A-Za-z0-9\-_]+)", text)
+    return m.group(1) if m else ""
+
+
+def run(data_dir: Path, output_dir: Path) -> dict:
+    data_dir = Path(data_dir)
+    output_dir = Path(output_dir)
+    files: list = []  # [{role, path, sha256}]
+    mode, source_ref, handoff_present = "standalone", "", False
+
+    upstream = data_dir / "upstream_handoff"
+    upstream_artifacts = (
+        [p for p in upstream.glob("*.md") if not _is_handoff_name(p.name)] if upstream.is_dir() else []
+    )
+
+    if upstream_artifacts:
+        artifact = _latest(upstream_artifacts)
+        form = _form_of(artifact.name)
+        mode = "refine" if form == "draft" else "standalone"
+        handoff_md = upstream / "HANDOFF.md"
+        handoff_present = handoff_md.is_file()
+        source_ref = _source_id_from_handoff(handoff_md) if handoff_present else artifact.name
+        files.append({"role": form, "path": str(artifact), "sha256": _sha16(artifact)})
+        print(f"[判道] 上游交接：{artifact.name}（形态 {form}，HANDOFF {'有' if handoff_present else '缺失'}）")
+    else:
+        narrative = data_dir / "NARRATIVE_REPORT.md"
+        data_table = data_dir / "vasp_results.md"
+        if narrative.is_file() or data_table.is_file():
+            mode, source_ref = "standalone", (narrative if narrative.is_file() else data_table).name
+            if narrative.is_file():
+                files.append({"role": "narrative", "path": str(narrative), "sha256": _sha16(narrative)})
+            if data_table.is_file():
+                files.append({"role": "data", "path": str(data_table), "sha256": _sha16(data_table)})
+            print(f"[判道] 独立素材：{[f['path'] for f in files]}")
+        else:
+            drafts = [
+                p
+                for p in data_dir.glob("*.md")
+                if p.name not in {"NARRATIVE_REPORT.md", "vasp_results.md", "README.md"}
+            ]
+            if drafts:
+                draft = _latest(drafts)
+                mode, source_ref = "refine", draft.name
+                files.append({"role": "draft", "path": str(draft), "sha256": _sha16(draft)})
+                print(f"[判道] 已有初稿：{draft.name} → 精修模式")
+            else:
+                searched = [str(upstream), str(narrative), str(data_table), f"{data_dir}/*.md"]
+                print(f"[报错] 未找到任何有效输入。检索过的位置：{searched}", file=sys.stderr)
+                sys.exit(2)
+
+    manifest = {
+        "mode": mode,
+        "source_ref": source_ref,
+        "handoff_present": handoff_present,
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "files": files,
+    }
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / MANIFEST_NAME).write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    return manifest
+
+
+def current_data_file(output_dir: Path):
+    """返回素材清单中的数据表（白名单源）路径；无则 None。"""
+    manifest_path = Path(output_dir) / MANIFEST_NAME
+    if not manifest_path.is_file():
+        return None
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    for f in manifest.get("files", []):
+        if f.get("role") == "data" and Path(f["path"]).is_file():
+            return Path(f["path"])
+    return None

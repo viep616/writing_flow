@@ -1,0 +1,17 @@
+{
+  // F5b 最小修复：按 R1 弱点清单做最小修复，遵循固定修复模式表
+  "agents": ["reviser"],
+  "inputs": {
+    "DRAFT_PATH": "output/论文_初稿.md",
+    "WEAKNESS_LIST": "output/评审_记录_R1.json"
+  },
+  "tasks": [
+    {
+      "name": "revise_report",
+      "agent": "reviser",
+      "description": "读取初稿 {DRAFT_PATH} 与 R1 弱点清单 {WEAKNESS_LIST}，做最小修复：真 overclaim 收窄 scope 而非换软词；假设-正文矛盾重写；散布的警告并入局限性章节；术语跨节一致。逐条处置，不得整段删除被判处的句子（删句绕过会被台账检测）；文末附 <!-- 修订说明：逐条弱点处置 --> 注释。输出全文修订稿。",
+      "expected_output": "完整修订稿 Markdown（保留全部章节）+ 文末修订说明注释。",
+      "output_file": "output/论文_初稿.md"
+    }
+  ]
+}

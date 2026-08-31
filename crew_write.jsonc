@@ -1,0 +1,17 @@
+{
+  // F4 分节写作：主题锚定 + 数值纪律 + 雷区黑名单（条款回收自 sf6 初探实测有效的 prompt 资产）
+  "agents": ["section_writer"],
+  "inputs": {
+    "PLAN_PATH": "output/论文_计划.md",
+    "CONTRACT_PATH": "output/验收_契约.md"
+  },
+  "tasks": [
+    {
+      "name": "write_sections",
+      "agent": "section_writer",
+      "description": "按论文计划 {PLAN_PATH} 的章节结构逐节写作全文，遵守验收契约 {CONTRACT_PATH}。三条最高纪律：1) 主题锚定——全文只围绕计划锚定的课题，禁止改写为其他课题；2) 数值纪律——计算设置与物理量只照抄数据表原文，公式只写符号不代数值；3) 雷区黑名单——禁止使用文献默认值替代数据表值，禁止换用近似值绕过。缺证据处写 <!-- DATA_NEEDED: 缺什么 --> 注释，不得编造。参考文献每条标注（待核实）。",
+      "expected_output": "完整论文初稿 Markdown，含全部章节；无围栏包裹。",
+      "output_file": "output/论文_初稿.md"
+    }
+  ]
+}

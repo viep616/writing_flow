@@ -1,0 +1,24 @@
+{
+  // F3 验收契约谈判（≤2 轮）：执行者拟断言 → 跨家族挑战者逐条挑战
+  "agents": ["claim_drafter", "contract_challenger"],
+  "inputs": {
+    "PLAN_PATH": "output/论文_计划.md"
+  },
+  "tasks": [
+    {
+      "name": "draft_assertions",
+      "agent": "claim_drafter",
+      "description": "依据论文计划 {PLAN_PATH} 拟定 10-20 条可检验断言（覆盖数值范围、结论边界、图表与正文对应关系），每条断言必须可由素材文件判定真伪。",
+      "expected_output": "断言清单表格（编号 | 断言 | 判定依据）。",
+      "output_file": "output/契约_断言草案.md"
+    },
+    {
+      "name": "challenge_assertions",
+      "agent": "contract_challenger",
+      "context": ["draft_assertions"],
+      "description": "逐条挑战断言：是否可测？证据是否真的可得？是否存在过度承诺？输出挑战意见表（编号 | 结论：接受/需修订 | 理由 | 修订建议）。若全部接受，契约状态行写「状态：accepted」；存在未消解分歧写「状态：contested」并附双方立场。",
+      "expected_output": "Markdown 契约文档，首部含「状态：accepted/contested」行。",
+      "output_file": "output/验收_契约.md"
+    }
+  ]
+}

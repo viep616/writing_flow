@@ -1,0 +1,17 @@
+{
+  // F7 零上下文数值审计：只读成稿与数据文件两份材料，防确认偏置
+  "agents": ["claim_auditor"],
+  "inputs": {
+    "DRAFT_PATH": "output/论文_初稿.md",
+    "DATA_PATH": "data/vasp_results.md"
+  },
+  "tasks": [
+    {
+      "name": "audit_claims",
+      "agent": "claim_auditor",
+      "description": "零上下文对账：只读论文 {DRAFT_PATH} 与数据文件 {DATA_PATH}，逐个核对论文中的数值主张，检查七类失真：数值膨胀、best 挑选、配置错配、聚合数错、差值算错、图注-表格不符、范围过度声明。输出严格 JSON：{\"findings\": [{\"type\":\"七类之一\",\"claim\":\"论文原句\",\"evidence\":\"数据文件依据\",\"detail\":\"不符说明\"}], \"verdict\": \"PASS|FAIL\"}。若论文含数字主张但数据文件缺失字段，判 BLOCKED 并说明。只报告事实，不做修复建议。",
+      "expected_output": "单个 JSON 对象（findings 可为空数组）。",
+      "output_file": "output/数值_复核_原文.json"
+    }
+  ]
+}

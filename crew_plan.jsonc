@@ -1,0 +1,16 @@
+{
+  // F2 论文规划：从素材包产出 claims-evidence 矩阵与章节结构
+  "agents": ["paper_planner"],
+  "inputs": {
+    "SOURCES_MANIFEST": "output/SOURCES_MANIFEST.json"
+  },
+  "tasks": [
+    {
+      "name": "make_paper_plan",
+      "agent": "paper_planner",
+      "description": "读取素材清单 {SOURCES_MANIFEST} 及其指向的素材文件，产出论文计划：1) claims-evidence 矩阵（表格：论断 | 证据来源槽位 | 证据是否可得 | 预期落点章节），每条论断必须绑定一个证据槽位，证据不可得的标记 DATA_NEEDED；2) 5-8 节章节结构；3) 图表计划（只声明所需图型，不生成图）。",
+      "expected_output": "Markdown 文档，含上述三部分；矩阵中不得出现素材之外的数值。",
+      "output_file": "output/论文_计划.md"
+    }
+  ]
+}

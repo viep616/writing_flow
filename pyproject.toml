@@ -1,0 +1,20 @@
+[project]
+name = "writing_flow"
+version = "0.1.0"
+description = "ARIS 论文写作流程的 CrewAI Flow 实现（总项目产线·论文写作段）"
+authors = [{ name = "sf6-team" }]
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "crewai[tools]==1.15.10"
+]
+
+[project.scripts]
+kickoff = "writing_flow.main:kickoff"
+plot = "writing_flow.main:plot"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.crewai]
+type = "flow"

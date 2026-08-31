@@ -1,0 +1,17 @@
+{
+  // F5/F5c 跨模型评审（每轮由 Flow 重建全新实例 kickoff ＝ 新鲜线程协议）
+  "agents": ["cross_reviewer"],
+  "inputs": {
+    "DRAFT_PATH": "output/论文_初稿.md",
+    "R1_UPHOLD_LIST": ""
+  },
+  "tasks": [
+    {
+      "name": "cross_review",
+      "agent": "cross_reviewer",
+      "description": "独立评审论文全文 {DRAFT_PATH}。若 R1 成立弱点核验清单非空（{R1_UPHOLD_LIST}），必须逐条核验每个弱点的处置下落（addressed / upheld_again），禁止忽略。输出严格 JSON（不要任何多余文字）：{\"score\": 1-10 整数, \"verdict\": \"ready|almost|not_ready\", \"weaknesses\": [{\"id\":\"w1\",\"severity\":\"critical|major|minor\",\"desc\":\"...\",\"min_fix\":\"...\"}], \"uphold_check\": [{\"id\":\"w1\",\"status\":\"addressed|upheld_again\"}]}。评分维度：论证完整性、证据-结论匹配、数值表述纪律、结构清晰度。不得为讨好作者调分；负结果与弱点必须如实呈报。",
+      "expected_output": "单个 JSON 对象，字段齐全，无围栏包裹也可（解析器兼容围栏）。",
+      "output_file": "output/评审_原文_R.txt"
+    }
+  ]
+}
