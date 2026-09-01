@@ -66,7 +66,7 @@ $env:WRITING_FLOW_STUB='1'; & "..\.venv\Scripts\python.exe" src\writing_flow\mai
 ## 状态
 
 - **M1 已完成**：骨架直通（判道→规划→契约→写作→两轮循环→致命一击→审计→投稿门→留档），桩模式全链路验证通过
-- **M2 进行中**：评审模型迁移 v4-pro（稳定性 5/5）、R1 成立清单接线、写作段三段联调、真实模式全流程首跑（终态 overall=no，后缀全链留痕）、**guardrail 兜底已上线**（`tools/task_guardrails.py` 经 jsonc python 引用接线 review/audit/arbiter，确定性校验 + 一次重试；投稿门三处 fail-open 全部修复）。待办：验收单测（tests/ 尚空）、二跑冲全绿
+- **M2 已完成（2026-09-01）**：评审模型迁移 v4-pro（稳定性 5/5）、R1 成立清单接线、写作段三段联调、真实模式全流程首跑（终态 overall=no，后缀全链留痕）、guardrail 兜底上线（确定性校验+一次重试）、验收单测 14/14 全绿（`tests/`，零依赖自运行：`& ..\.venv\Scripts\python.exe tests\test_m2_acceptance.py`）。首跑共产出 12 项缺陷修复（含投稿门三处 fail-open），全部固化为回归用例。可选收尾：二跑冲全绿
 - **决策点待裁**：评审家族合规（若纯千问，设 WRITING_FLOW_REVIEWER_FAMILY=qwen 降级，结论标 provisional）；上游契约六条与队友确认
 
 ## 工程约定
