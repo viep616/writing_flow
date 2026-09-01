@@ -1,0 +1,73 @@
+{
+  "generated_at": "2026-09-01T18:57:50",
+  "mode": "stub",
+  "runs": [
+    {
+      "run": 1,
+      "elapsed_s": 6.15,
+      "overall": "provisional",
+      "stages_done": 11,
+      "contract": "accepted",
+      "kill": "WARN",
+      "audit_findings": 0,
+      "ledger_new_lines": 2,
+      "fingerprints": {
+        "论文_成稿.md": "6d4cdd0274079192",
+        "论文_计划.md": "bac5b3faad7e209b",
+        "验收_契约.md": "bb9e41efce67dcbe",
+        "评审_记录_R1.json": "ec42fa2ada3ee0cb",
+        "评审_记录_R2.json": "91c245aeb5ce1b8e",
+        "致命一击.json": "11066a58f28609a3",
+        "数值_复核.json": "201e8012759b3b3a"
+      }
+    },
+    {
+      "run": 2,
+      "elapsed_s": 4.97,
+      "overall": "provisional",
+      "stages_done": 11,
+      "contract": "accepted",
+      "kill": "WARN",
+      "audit_findings": 0,
+      "ledger_new_lines": 2,
+      "fingerprints": {
+        "论文_成稿.md": "6d4cdd0274079192",
+        "论文_计划.md": "bac5b3faad7e209b",
+        "验收_契约.md": "bb9e41efce67dcbe",
+        "评审_记录_R1.json": "ec42fa2ada3ee0cb",
+        "评审_记录_R2.json": "91c245aeb5ce1b8e",
+        "致命一击.json": "11066a58f28609a3",
+        "数值_复核.json": "201e8012759b3b3a"
+      }
+    },
+    {
+      "run": 3,
+      "elapsed_s": 5.0,
+      "overall": "provisional",
+      "stages_done": 11,
+      "contract": "accepted",
+      "kill": "WARN",
+      "audit_findings": 0,
+      "ledger_new_lines": 2,
+      "fingerprints": {
+        "论文_成稿.md": "6d4cdd0274079192",
+        "论文_计划.md": "bac5b3faad7e209b",
+        "验收_契约.md": "bb9e41efce67dcbe",
+        "评审_记录_R1.json": "ec42fa2ada3ee0cb",
+        "评审_记录_R2.json": "91c245aeb5ce1b8e",
+        "致命一击.json": "11066a58f28609a3",
+        "数值_复核.json": "201e8012759b3b3a"
+      }
+    }
+  ],
+  "deterministic": true,
+  "expectation": {
+    "overall": "provisional",
+    "stages_done": 11,
+    "contract": "accepted",
+    "kill": "WARN",
+    "audit_findings": 0,
+    "ledger_new_lines_per_run": 2
+  },
+  "note": "桩模式确定性基线：N 次指纹两两一致即 deterministic=true；后续任何改动后重跑本工具，与 eval/回归基线.json 对照即可发现行为漂移。"
+}

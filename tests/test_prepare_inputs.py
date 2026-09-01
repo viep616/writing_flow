@@ -94,6 +94,7 @@ def test_draft_refine_regression():
         (data / "历史终稿.md").write_text("# 初稿", encoding="utf-8")
         manifest = prepare_inputs.run(data, out)
         assert manifest["mode"] == "refine" and manifest["files"][0]["role"] == "draft"
+        assert manifest["from_upstream"] is False  # 独立历史初稿不算交接不完整（M4 语义修正）
 
 
 def test_topic_anchor_parse():

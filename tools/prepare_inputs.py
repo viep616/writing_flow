@@ -77,6 +77,7 @@ def run(data_dir: Path, output_dir: Path) -> dict:
     files: list = []  # [{role, path, sha256}]
     mode, source_ref, handoff_present = "standalone", "", False
     raw_calc_root_ref = ""
+    from_upstream = False  # 素材是否来自上游交接区（"交接不完整"标记仅对上游来源的 refine 有意义）
 
     upstream = data_dir / "upstream_handoff"
     upstream_artifacts = (
@@ -86,6 +87,7 @@ def run(data_dir: Path, output_dir: Path) -> dict:
     raw_calc_root = _find_raw_calc_root(upstream)
     if raw_calc_root is not None:
         # 原始计算归档（QE pwo）：自动触发确定性提取 → 白名单表；README 归档说明不再误判为初稿
+        from_upstream = True
         mode = "standalone"
         handoff_md = upstream / "HANDOFF.md"
         handoff_present = handoff_md.is_file()
@@ -105,6 +107,7 @@ def run(data_dir: Path, output_dir: Path) -> dict:
         raw_calc_root_ref = str(raw_calc_root)
         print(f"[判道] 原始计算归档：{raw_calc_root.name}（qe_extract 已生成白名单表，HANDOFF {'有' if handoff_present else '缺失'}）")
     elif upstream_artifacts:
+        from_upstream = True
         artifact = _latest(upstream_artifacts)
         form = _form_of(artifact.name)
         mode = "refine" if form == "draft" else "standalone"
@@ -143,6 +146,7 @@ def run(data_dir: Path, output_dir: Path) -> dict:
         "mode": mode,
         "source_ref": source_ref,
         "handoff_present": handoff_present,
+        "from_upstream": from_upstream,
         "topic_anchor": topic_anchor_from_handoff(data_dir / "upstream_handoff" / "HANDOFF.md"),
         "raw_calc_root": raw_calc_root_ref,
         "generated_at": datetime.now().isoformat(timespec="seconds"),

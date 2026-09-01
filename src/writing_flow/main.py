@@ -78,6 +78,8 @@ except Exception:  # pragma: no cover
 
 OUTPUT_DIR = BASE_DIR / "output"
 STUB = os.getenv("WRITING_FLOW_STUB", "") == "1"
+# 数据目录可覆盖（M4：精修模式实测等场景免动生产交接区；默认生产路径不变）
+DATA_DIR = Path(os.getenv("WRITING_FLOW_DATA_DIR", "")) if os.getenv("WRITING_FLOW_DATA_DIR") else BASE_DIR / "data"
 
 DRAFT_FILE = OUTPUT_DIR / "论文_初稿.md"
 REVIEWER_FAMILY = os.getenv("WRITING_FLOW_REVIEWER_FAMILY", "deepseek")
@@ -222,12 +224,12 @@ class PaperFlow(Flow[ArisPaperState]):
     def load_inputs(self):
         self.state.stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self._mark("load_inputs", "running")
-        info = prepare_inputs.run(BASE_DIR / "data", OUTPUT_DIR)
+        info = prepare_inputs.run(DATA_DIR, OUTPUT_DIR)
         self.state.mode = info["mode"]
         self.state.source_ref = info["source_ref"]
         self.state.topic_anchor = info.get("topic_anchor", "")
-        if not info["handoff_present"] and info["mode"] == "refine":
-            self.state.human_flags.append("交接不完整")
+        if info.get("from_upstream") and not info["handoff_present"] and info["mode"] == "refine":
+            self.state.human_flags.append("交接不完整")  # 仅上游来源缺 HANDOFF 才标记；独立历史初稿不算
         self._mark("load_inputs", "done")
         print(f"[F1] 判道 mode={self.state.mode} source={self.state.source_ref} stamp={self.state.stamp}")
 
@@ -306,6 +308,10 @@ class PaperFlow(Flow[ArisPaperState]):
     @listen("revise")
     def revise_paper(self):
         self._mark("revise_paper", "running")
+        if not STUB:  # 真实模式修订前留档（M3 首跑发现的留痕缺口；桩模式自带快照）
+            backup = OUTPUT_DIR / f"论文_初稿_{datetime.now().strftime('%Y%m%d_%H%M%S')}_修订前.md"
+            if DRAFT_FILE.is_file():
+                backup.write_text(DRAFT_FILE.read_text(encoding="utf-8"), encoding="utf-8")
         if STUB:
             _stub_revise()
         else:

@@ -19,6 +19,8 @@ writing_flow/
 │   ├── verify_gates.py          # 投稿门五项检查 → overall 三态
 │   ├── qe_extract.py            # QE pwo → 白名单数据表（M3，确定性提取零 LLM）
 │   ├── task_guardrails.py       # Crew/审计任务 guardrail（jsonc {"python": ...} 接线）
+│   ├── resume_flow.py           # 断点恢复入口（--list 查库 / --uuid 恢复，M4）
+│   ├── eval_run.py              # 回归基线（桩模式 N 次确定性指纹 → eval/回归基线.json）
 │   ├── archive.py               # 时间戳留档 + 后缀合成
 │   ├── validate_report.py       # ↓ 以下三个回收自 sf6 初探
 │   ├── make_charts.py
