@@ -1,6 +1,7 @@
 # writing_flow · ARIS 论文写作流程的 CrewAI Flow 实现
 
-> 设计依据：《MVP 产品方案 v1.1》《技术方案 v1.1》（位于 `crew优化/Auto-claude-code-research-in-sleep/` 下 mvp-product-plan 与 tech-design 目录）。
+> 设计依据：`docs/mvp-product-plan/`（MVP 产品方案 v1.1）与 `docs/tech-design/`（技术方案 v1.1），各有 HTML（含交互演示）与 Markdown 双版本。
+> 新会话接手先读 `docs/HANDOVER.md`（交接说明：当前状态 / M2 计划 / 待决事项 / 已知坑）。
 > 定位：总项目产线的论文写作段——上游承接队友基于 CrewAI Flow 的前部进程（文件交接），产出一篇经过跨模型评审与多层确定性审计、留痕完整的论文成稿。
 
 ## 结构
