@@ -66,7 +66,7 @@ $env:WRITING_FLOW_STUB='1'; & "..\.venv\Scripts\python.exe" src\writing_flow\mai
 ## 状态
 
 - **M1 已完成**：骨架直通（判道→规划→契约→写作→两轮循环→致命一击→审计→投稿门→留档），桩模式全链路验证通过
-- **M2 进行中**：评审模型已迁移 `deepseek/deepseek-v4-pro`（稳定性 5/5）；R1 成立清单已接线；写作段三段联调完成（契约/写作 Crew 已注入 SOURCES_MANIFEST 修复素材路径问题；发现写手装饰性编造 2 值滑过白名单容差——详见 HANDOVER）。待办：真实模式全流程首跑、guardrail 兜底重试、验收单测（tests/ 尚空）
+- **M2 进行中**：评审模型迁移 v4-pro（稳定性 5/5）、R1 成立清单接线、写作段三段联调、**真实模式全流程首跑已完成**（终态 overall=no，后缀全链留痕；修复投稿门两处 fail-open 与三处真实模式接线断层；R1/审计 JSON 格式漂移实证 → guardrail 列为必做项）。待办：guardrail 兜底重试、验收单测（tests/ 尚空）、格式加固后二跑冲全绿
 - **决策点待裁**：评审家族合规（若纯千问，设 WRITING_FLOW_REVIEWER_FAMILY=qwen 降级，结论标 provisional）；上游契约六条与队友确认
 
 ## 工程约定

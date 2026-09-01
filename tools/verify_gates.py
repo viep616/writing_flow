@@ -60,6 +60,7 @@ def run(out_dir: Path, snap: dict) -> tuple[dict, str]:
         if a.get("disposition") == "still_unresolved" and a.get("severity") == "critical"
     )
     kill_ok = not (crit_unres > 0 and snap.get("kill_verdict") != "FAIL")
+    kill_ok = kill_ok and snap.get("kill_verdict") not in {"", "BLOCKED"}  # 解析失败/无 verdict 一律不放行（fail-closed）
     ledger_open = snap.get("ledger_open", 0)
     flags = snap.get("human_flags", [])
     ledger_ok = ledger_open == 0 or any(("台账" in f or "绕过" in f) for f in flags)
@@ -76,7 +77,8 @@ def run(out_dir: Path, snap: dict) -> tuple[dict, str]:
     results["降级声明"] = "pass" if not snap.get("provisional") else "pass(封顶 provisional)"
 
     any_fail = any(v.startswith("fail") for v in results.values())
-    if any_fail:
+    if any_fail or snap.get("kill_verdict") == "FAIL":
+        # kill FAIL＝存在 critical 未解拒稿点，属阻断项（M2 首跑实测曾漏网：FAIL 不封顶直通 accepted）
         overall = "no"
     elif snap.get("provisional") or snap.get("kill_verdict") == "WARN":
         overall = "provisional"

@@ -10,6 +10,7 @@
 ## 当前状态
 
 - **M1 骨架直通：完成**。桩模式（`WRITING_FLOW_STUB=1`，不调 LLM）全链路验证通过：判道 → 规划 → 契约 → 写作 → R1（未达标走修复分支）→ 修订 → R2（台账闭合）→ 致命一击（WARN，代码映射）→ 数值复核（findings=0）→ 投稿门（五项全 pass，overall=provisional）→ 留档（后缀 `_致命一击未过` + 转人工标记）。两条路由分支、后缀合成、@persist 快照全部按设计工作。
+- **M2 真实模式全流程首跑（2026-09-01，F7 崩溃后经状态快照恢复收尾）**：终态 overall=no，后缀 `_契约争议_致命一击未过_数值存疑_未通过门`——质量机制诚实拒掉了自己产线的成稿。**五项关键结论**：① R1 评审 JSON 字符串内嵌未转义双引号 → 解析失败，fail-closed 正确兜底但白烧一轮修订（其内容实为 6/almost 可直接达标）；隔离测试 5/5 ≠ 真实 Agent 环境，guardrail 由观察项升级为必做项；② 零上下文审计输出散文而非严格 JSON（格式漂移第二例），fail-closed 判数值存疑——审计内容本身逐项一致；③ 投稿门两处 fail-open 实测修复：kill FAIL 原不封顶直通 accepted、`audit_parse_error` 未传入 snap 绕过一致性门；④ 致命一击机制真实威力：写手以"本质跃迁"立论（动力学概念），杀手精准判定 0K 静态证据无法支撑，5 原子点全 critical 未解 → FAIL，链条完整闭环；⑤ F7 崩溃因 claim_auditor 对象式 llm 配置漏改（只 grep 了字符串式），已修。恢复方式见坑 12。
 - **`.env` 已配好**：DASHSCOPE_API_KEY 复制自 sf6_writing_crew（团队同一 key），BASE_URL 已设。**2026-09-01 更新**：百炼公告全系旧 DeepSeek（v3/v3.1/v3.2/r1）2026-10-10 下架，评审系三角色已迁移 `deepseek/deepseek-v4-pro`，经 crewai 原生 `deepseek/` 前缀 + `.env` 的 `DEEPSEEK_API_KEY`（同 DASHSCOPE key）与 `DEEPSEEK_BASE_URL`（指向百炼兼容模式）路由；连通性与评审 JSON 稳定性已实测（见下）。
 - git 两个提交：`ea0df6a`（骨架）→ `494f91d`（plot 导出修复）。master 即可用版本，大改前打 tag。
 
@@ -54,6 +55,7 @@ $env:WRITING_FLOW_STUB='1'; & "..\.venv\Scripts\python.exe" src\writing_flow\mai
 9. crewai 1.15.10 原生 provider 有型号白名单：`dashscope/` 前缀只认 `qwen*` 型号（`dashscope/deepseek-*` 一律初始化失败，且本 venv 未装 litellm 回退包，共享 venv 勿擅自加装）；DeepSeek 系必须走原生 `deepseek/` 前缀，它读 `DEEPSEEK_API_KEY` + `DEEPSEEK_BASE_URL`，后者指到百炼兼容模式即复用现有 key。另注意原生 dashscope 默认端点是国际站 `dashscope-intl`，国内 key 必须显式 `DASHSCOPE_BASE_URL`（.env 已设）。
 10. jsonc Crew 里凡需读素材文件的任务，必须把 `SOURCES_MANIFEST` 作为输入注入并在 description 里指明"按清单 path 字段的绝对路径读取"——只给文件名时 agent 会自己猜路径（output/、/home/user/ 等），全部失败后还会把"文件不存在"当结论写进产物（M2-2 实测：契约挑战者曾因此把 14 条断言全判"证据不可得"）。plan 段传绝对路径所以没踩过。
 11. 工具层教训（两次踩中）：对同一文件的多处编辑绝不可并行发起，后写会基于旧版本覆盖前写（main.py 接线曾被覆盖丢失、HANDOVER 坑 #9 曾被覆盖丢失）——同文件多改必须串行。
+12. crewai 1.15 断点续跑三坑（M2 首跑实测）：① `kickoff()` 不带参数会清空 `_completed_methods` 并从头重跑（要保留须 `kickoff(inputs={"id": uuid})` 走 is_restoring 分支）；② 即便 `reload(execution_data)` + 带 id kickoff，**监听已完成方法的尾部监听器不会触发**（claim_audit 静默跳过、流程显示"完成"）——官方 replay 机制无法直接用于尾部补跑；③ 可靠恢复配方：从 `flow_states.db` 按时间窗取崩溃前最后快照 → `flow._state = ArisPaperState.model_validate(state)` → **直接顺序调用剩余方法**（同一份代码，不经 DAG）；查询务必带时间窗过滤，被中止的重跑会写入污染行。M4 恢复入口照此实现。
 
 ## 环境与依赖
 

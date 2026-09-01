@@ -131,6 +131,54 @@ def _kick(crew_file: str, inputs: dict):
     return crew.kickoff(inputs={**defaults, **inputs})
 
 
+def _snapshot_review(round_no: int) -> None:
+    """真实模式桥接：评审_原文_R.txt → 评审_原文_R{round_no}.txt。
+    Crew 未产出时落空文件 → 解析必失败 → fail-closed，杜绝读到上一轮/桩的旧评审。"""
+    src = OUTPUT_DIR / "评审_原文_R.txt"
+    text = src.read_text(encoding="utf-8") if src.is_file() else ""
+    _write(OUTPUT_DIR / f"评审_原文_R{round_no}.txt", text)
+
+
+def _merge_kill_artifacts() -> bool:
+    """真实模式桥接：致命_攻击段.md + 致命_原子点.json → 规范名 致命一击.json。
+    返回是否解析失败（atoms 缺失/为空/非法 JSON 均 fail-closed 判失败，防止空 atoms 一路绿）。"""
+    attack_path = OUTPUT_DIR / "致命_攻击段.md"
+    attack = attack_path.read_text(encoding="utf-8").strip() if attack_path.is_file() else ""
+    payload = {"attack": attack, "atoms": [], "parse_error": False}
+    try:
+        doc = json.loads((OUTPUT_DIR / "致命_原子点.json").read_text(encoding="utf-8"))
+        atoms = doc.get("atoms", [])
+        if atoms:
+            payload["atoms"] = atoms
+        else:
+            payload["parse_error"] = True
+    except (OSError, json.JSONDecodeError):
+        payload["parse_error"] = True
+    _write(OUTPUT_DIR / "致命一击.json", json.dumps(payload, ensure_ascii=False, indent=2))
+    return payload["parse_error"]
+
+
+def _merge_audit_artifacts(data_path) -> bool:
+    """真实模式桥接：数值_复核_原文.json → 规范名 数值_复核.json，注入 _meta 双指纹（新鲜度门依据）。
+    返回是否解析失败（失败仍落盘合法 JSON，由 audit_parse_error 与 verdict=PARSE_ERROR 双路 fail-closed）。"""
+    meta = {
+        "draft_sha256": _sha(DRAFT_FILE),
+        "data_file": str(data_path or ""),
+        "data_sha256": _sha(data_path) if data_path else None,
+        "generated_at": _now(),
+    }
+    src = OUTPUT_DIR / "数值_复核_原文.json"
+    try:
+        doc = json.loads(src.read_text(encoding="utf-8"))
+        payload = {"findings": doc.get("findings", []), "verdict": doc.get("verdict", ""), "_meta": meta}
+        parse_error = False
+    except (OSError, json.JSONDecodeError):
+        payload = {"findings": [], "verdict": "PARSE_ERROR", "parse_error": True, "_meta": meta}
+        parse_error = True
+    _write(OUTPUT_DIR / "数值_复核.json", json.dumps(payload, ensure_ascii=False, indent=2))
+    return parse_error
+
+
 # ---------------------------------------------------------------- Flow 定义
 @persist()  # SQLite 状态持久化：每个方法执行后自动快照（注意：persist 带默认参数，须调用形式）
 class PaperFlow(Flow[ArisPaperState]):
@@ -228,6 +276,7 @@ class PaperFlow(Flow[ArisPaperState]):
             _stub_review(1)
         else:
             _kick("crew_review.jsonc", {"DRAFT_PATH": str(DRAFT_FILE), "R1_UPHOLD_LIST": ""})
+            _snapshot_review(1)
         parsed = review_gate.parse_file(OUTPUT_DIR / "评审_原文_R1.txt")
         gate = review_gate.decide(parsed)
         _save_review_record(1, parsed, gate)
@@ -264,6 +313,7 @@ class PaperFlow(Flow[ArisPaperState]):
             _stub_review(2)
         else:
             _kick("crew_review.jsonc", {"DRAFT_PATH": str(DRAFT_FILE), "R1_UPHOLD_LIST": str(OUTPUT_DIR / "评审_R1成立清单.md")})
+            _snapshot_review(2)
         parsed = review_gate.parse_file(OUTPUT_DIR / "评审_原文_R2.txt")
         gate = review_gate.decide(parsed)
         _save_review_record(2, parsed, gate)
@@ -294,6 +344,12 @@ class PaperFlow(Flow[ArisPaperState]):
             _stub_kill()
         else:
             _kick("crew_kill.jsonc", {"DRAFT_PATH": str(DRAFT_FILE)})
+            if _merge_kill_artifacts():  # Crew 产物 → 规范名工件；解析失败 fail-closed 判 BLOCKED
+                self.state.kill_verdict, self.state.kill_unresolved = "BLOCKED", 0
+                self.state.human_flags.append("致命一击解析失败")
+                self._mark("kill_argument", "done")
+                print("[F6] 致命一击 verdict=BLOCKED（解析失败，fail-closed）")
+                return
         atoms, verdict, unresolved = verdict_map.map_file(OUTPUT_DIR / "致命一击.json")
         self.state.kill_verdict, self.state.kill_unresolved = verdict, unresolved
         if verdict == "WARN":
@@ -306,13 +362,15 @@ class PaperFlow(Flow[ArisPaperState]):
     def claim_audit(self):
         self._mark("claim_audit", "running")
         data_path = prepare_inputs.current_data_file(OUTPUT_DIR)
+        merged_error = False
         if STUB:
             _stub_audit(data_path)
         else:
             _kick("crew_audit.jsonc", {"DRAFT_PATH": str(DRAFT_FILE), "DATA_PATH": str(data_path or "")})
+            merged_error = _merge_audit_artifacts(data_path)  # 注入 _meta 双指纹 → 规范名工件
         findings, parse_error = review_gate.read_findings(OUTPUT_DIR / "数值_复核.json")
         self.state.audit_findings = findings
-        self.state.audit_parse_error = parse_error
+        self.state.audit_parse_error = parse_error or merged_error
         self._mark("claim_audit", "done")
         print(f"[F7] 数值复核 findings={findings}")
 
@@ -324,6 +382,7 @@ class PaperFlow(Flow[ArisPaperState]):
             "kill_verdict": self.state.kill_verdict,
             "kill_unresolved": self.state.kill_unresolved,
             "audit_findings": self.state.audit_findings,
+            "audit_parse_error": self.state.audit_parse_error,  # M2 首跑实测漏传：解析失败曾绕过一致性门
             "ledger_open": self.state.ledger_open,
             "provisional": self.state.provisional,
             "human_flags": list(self.state.human_flags),
