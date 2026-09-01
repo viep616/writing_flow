@@ -109,12 +109,19 @@ def build_whitelist(data_text: str) -> dict[str, set[float]]:
                     unit_raw = cells[unit_idx]
                     if unit_raw in ("—", "-", ""):
                         continue
+                    key = unit_raw.strip()
                     # 约定：第 0 列为物理量名称列（如"干扰气体1吸附能（CO₂）"），
-                    # 其中的下标数字不得进入白名单，故只解析数据列
+                    # 其中的下标数字不得进入白名单，故只解析数据列。
+                    # M3-③：单元格自带单位（如 QE 换算列 "-27269.3231 eV"）按格内单位归类，
+                    # 其余裸数值按「单位」列归类——否则换算值会错入行单位桶
                     for cell in cells[1:unit_idx] + cells[unit_idx + 1:]:
-                        for val in _parse_cell_numbers(cell):
-                            key = unit_raw.strip()
-                            whitelist.setdefault(key, set()).add(round(val, 6))
+                        in_cell = extract_report_numbers(cell)
+                        if in_cell:
+                            for unit_tag, val_tag, _, _ in in_cell:
+                                whitelist.setdefault(unit_tag, set()).add(round(val_tag, 6))
+                        else:
+                            for val in _parse_cell_numbers(cell):
+                                whitelist.setdefault(key, set()).add(round(val, 6))
             i += 1
         else:
             # 散文行：并入带单位的数值（来源含定性描述节、队友备注）
@@ -225,6 +232,19 @@ def check_forbidden(report_text: str) -> list[str]:
     return problems
 
 
+def _cross_unit_ok(val: float, unit: str, whitelist: dict[str, set[float]]) -> bool:
+    """Ry↔eV 互推核对（口径 13.6057，与 qe_extract/上游 README 一致）：
+    报告引用换算值时按对侧单位白名单核对，容差取绝对容差与相对 1e-6 的较大者。"""
+    pairs = {"eV": ("Ry", 13.6057), "Ry": ("eV", 1 / 13.6057)}
+    if unit not in pairs:
+        return False
+    other, factor = pairs[unit]
+    return any(
+        abs(val - v * factor) <= max(TOLERANCE, abs(val) * 1e-6)
+        for v in whitelist.get(other, ())
+    )
+
+
 def validate(report_path: Path, data_path: Path) -> tuple[bool, list[str]]:
     """校验报告。返回 (是否通过, 问题清单)。"""
     whitelist = build_whitelist(data_path.read_text(encoding="utf-8"))
@@ -240,9 +260,11 @@ def validate(report_path: Path, data_path: Path) -> tuple[bool, list[str]]:
     for unit, val, lineno, line in extract_report_numbers(report_text):
         unit_vals = whitelist.get(unit)
         if unit_vals is None:
-            # 数据文件没有该单位数值（如 Ry 只出现在计算设置文字里）→ 降级为提示
+            # M3-③：数据文件无该单位数值原为静默跳过（fail-open）→ 改为报警；
+            # 报告出现白名单全无的单位（如 VASP 素材下引用 Ry）即无据数值
+            problems.append(f"[白名单外·单位缺失] {val} {unit} — 第{lineno}行: {line[:80]}")
             continue
-        if not _check_derivable(val, unit_vals):
+        if not _check_derivable(val, unit_vals) and not _cross_unit_ok(val, unit, whitelist):
             problems.append(
                 f"[白名单外] {val} {unit} — 第{lineno}行: {line[:80]}"
             )
