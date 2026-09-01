@@ -77,8 +77,9 @@ def run(out_dir: Path, snap: dict) -> tuple[dict, str]:
     results["降级声明"] = "pass" if not snap.get("provisional") else "pass(封顶 provisional)"
 
     any_fail = any(v.startswith("fail") for v in results.values())
-    if any_fail or snap.get("kill_verdict") == "FAIL":
-        # kill FAIL＝存在 critical 未解拒稿点，属阻断项（M2 首跑实测曾漏网：FAIL 不封顶直通 accepted）
+    audit_fail = str(audit.get("verdict", "")).upper() == "FAIL"  # 数值审计判 FAIL＝实锤失真，属阻断项
+    if any_fail or snap.get("kill_verdict") == "FAIL" or audit_fail:
+        # kill FAIL / audit FAIL 均为阻断项（M2 首跑实测曾漏网：FAIL 不封顶直通 accepted）
         overall = "no"
     elif snap.get("provisional") or snap.get("kill_verdict") == "WARN":
         overall = "provisional"

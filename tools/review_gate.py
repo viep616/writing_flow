@@ -46,18 +46,24 @@ def _extract_json(text: str) -> dict | None:
     return None
 
 
-def parse_file(path: Path) -> dict:
-    """读评审原文文件 → 解析字段；失败返回 {"parse_error": True}（fail-closed 依据）。"""
-    try:
-        text = Path(path).read_text(encoding="utf-8")
-    except OSError:
-        return {"parse_error": True}
+def parse_text(text: str) -> dict:
+    """解析评审原文文本 → 字段校验；失败返回 {"parse_error": True}（fail-closed 依据）。
+    供 parse_file 与 task_guardrails 共用（单一解析源）。"""
     parsed = _extract_json(text)
     if parsed is None or "score" not in parsed or "verdict" not in parsed:
         return {"parse_error": True}
     parsed.setdefault("weaknesses", [])
     parsed.setdefault("uphold_check", [])
     return parsed
+
+
+def parse_file(path: Path) -> dict:
+    """读评审原文文件 → 解析字段；失败返回 {"parse_error": True}（fail-closed 依据）。"""
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return {"parse_error": True}
+    return parse_text(text)
 
 
 def decide(parsed: dict) -> dict:

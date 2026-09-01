@@ -141,18 +141,20 @@ def _snapshot_review(round_no: int) -> None:
 
 def _merge_kill_artifacts() -> bool:
     """真实模式桥接：致命_攻击段.md + 致命_原子点.json → 规范名 致命一击.json。
-    返回是否解析失败（atoms 缺失/为空/非法 JSON 均 fail-closed 判失败，防止空 atoms 一路绿）。"""
+    返回是否解析失败（atoms 缺失/为空/非法均 fail-closed 判失败，防止空 atoms 一路绿）。
+    JSON 提取用 _extract_json（括号平衡，兼容围栏/散文前缀）——严格 json.loads 会把
+    「散文+尾部JSON」形态误判为解析失败（M2 首跑审计实录：真 findings 曾被丢弃）。"""
     attack_path = OUTPUT_DIR / "致命_攻击段.md"
     attack = attack_path.read_text(encoding="utf-8").strip() if attack_path.is_file() else ""
     payload = {"attack": attack, "atoms": [], "parse_error": False}
     try:
-        doc = json.loads((OUTPUT_DIR / "致命_原子点.json").read_text(encoding="utf-8"))
+        doc = review_gate._extract_json((OUTPUT_DIR / "致命_原子点.json").read_text(encoding="utf-8")) or {}
         atoms = doc.get("atoms", [])
         if atoms:
             payload["atoms"] = atoms
         else:
             payload["parse_error"] = True
-    except (OSError, json.JSONDecodeError):
+    except (OSError, AttributeError):
         payload["parse_error"] = True
     _write(OUTPUT_DIR / "致命一击.json", json.dumps(payload, ensure_ascii=False, indent=2))
     return payload["parse_error"]
@@ -160,7 +162,8 @@ def _merge_kill_artifacts() -> bool:
 
 def _merge_audit_artifacts(data_path) -> bool:
     """真实模式桥接：数值_复核_原文.json → 规范名 数值_复核.json，注入 _meta 双指纹（新鲜度门依据）。
-    返回是否解析失败（失败仍落盘合法 JSON，由 audit_parse_error 与 verdict=PARSE_ERROR 双路 fail-closed）。"""
+    返回是否解析失败（失败仍落盘合法 JSON，由 audit_parse_error 与 verdict=PARSE_ERROR 双路 fail-closed）。
+    提取用 _extract_json（括号平衡）：审计员常见「散文核对过程+尾部 JSON」形态，严格 loads 会误丢弃真 findings。"""
     meta = {
         "draft_sha256": _sha(DRAFT_FILE),
         "data_file": str(data_path or ""),
@@ -169,10 +172,12 @@ def _merge_audit_artifacts(data_path) -> bool:
     }
     src = OUTPUT_DIR / "数值_复核_原文.json"
     try:
-        doc = json.loads(src.read_text(encoding="utf-8"))
+        doc = review_gate._extract_json(src.read_text(encoding="utf-8"))
+        if doc is None or "findings" not in doc or "verdict" not in doc:
+            raise ValueError("缺少 findings/verdict 字段")
         payload = {"findings": doc.get("findings", []), "verdict": doc.get("verdict", ""), "_meta": meta}
         parse_error = False
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError):
         payload = {"findings": [], "verdict": "PARSE_ERROR", "parse_error": True, "_meta": meta}
         parse_error = True
     _write(OUTPUT_DIR / "数值_复核.json", json.dumps(payload, ensure_ascii=False, indent=2))

@@ -18,6 +18,8 @@
       "context": ["kill_attack"],
       "description": "把攻击拆解为 3-7 个原子拒稿点，逐点对照论文当前文本三分类并给严重度。输出严格 JSON：{\"atoms\": [{\"id\":\"a1\",\"point\":\"...\",\"disposition\":\"answered_by_current_text|partially_answered|still_unresolved\",\"severity\":\"critical|major|minor\",\"evidence\":\"章节/数据条目\"}]}。措辞如实，不使用 fixed 之类的乐观暗示；顶层结论不要自行给出（由代码按计数表映射）。",
       "expected_output": "单个 JSON 对象，atoms 数组 3-7 条。",
+      "guardrail": { "python": "tools.task_guardrails.arbiter_json" },
+      "guardrail_max_retries": 1,
       "output_file": "output/致命_原子点.json"
     }
   ]
