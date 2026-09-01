@@ -61,7 +61,7 @@ $env:WRITING_FLOW_STUB='1'; & "..\.venv\Scripts\python.exe" src\writing_flow\mai
 5. 路由标签不得与方法名同名（flow_definition 自引用校验）；当前标签 write / write_flagged / revise / final_audits 均合规，新增方法时保持此约束。
 6. `restore_from_state_id` 未命中时**静默回退不报错**；恢复入口应先显式查询状态库（M4 实现时处理）。
 7. Windows 控制台 GBK：main.py 已强制 stdout/stderr UTF-8；新增脚本同样处理。
-8. md2pdf.py 的 pandoc/xelatex 路径硬编码 `D:\pandoc\...`、`D:\MiKTeX\...`，本机路径不符则 PDF 自动跳过（`.env` 的 `WRITING_FLOW_PDF=1` 默认注释）。
+8. md2pdf.py 的 pandoc/xelatex 路径硬编码 `D:\pandoc\pandoc-3.6.4\pandoc.exe`、`D:\MiKTeX\miktex\bin\x64\xelatex.exe`。**2026-09-01 核实修正**：本机两路径分毫不差存在、SimHei 字体在位，前会话"本机路径不符"的假设过时；`WRITING_FLOW_PDF=1` 已在 .env 启用。但 **TRAE 沙箱会拦截 xelatex 启动**（0xC0000135：MiKTeX 动态 DLL 加载被断；pandoc 静态二进制可过、授权执行也一样）——在 agent 沙箱内跑不出 PDF，属环境限制而非代码问题；在用户自己的终端跑流程或补转命令（`& ..\.venv\Scripts\python.exe tools\md2pdf.py output\论文_成稿_xxx.md`）即可正常生成。
 9. crewai 1.15.10 原生 provider 有型号白名单：`dashscope/` 前缀只认 `qwen*` 型号（`dashscope/deepseek-*` 一律初始化失败，且本 venv 未装 litellm 回退包，共享 venv 勿擅自加装）；DeepSeek 系必须走原生 `deepseek/` 前缀，它读 `DEEPSEEK_API_KEY` + `DEEPSEEK_BASE_URL`，后者指到百炼兼容模式即复用现有 key。另注意原生 dashscope 默认端点是国际站 `dashscope-intl`，国内 key 必须显式 `DASHSCOPE_BASE_URL`（.env 已设）。
 10. jsonc Crew 里凡需读素材文件的任务，必须把 `SOURCES_MANIFEST` 作为输入注入并在 description 里指明"按清单 path 字段的绝对路径读取"——只给文件名时 agent 会自己猜路径（output/、/home/user/ 等），全部失败后还会把"文件不存在"当结论写进产物（M2-2 实测：契约挑战者曾因此把 14 条断言全判"证据不可得"）。plan 段传绝对路径所以没踩过。
 11. 工具层教训（两次踩中）：对同一文件的多处编辑绝不可并行发起，后写会基于旧版本覆盖前写（main.py 接线曾被覆盖丢失、HANDOVER 坑 #9 曾被覆盖丢失）——同文件多改必须串行。
