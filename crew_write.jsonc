@@ -3,13 +3,14 @@
   "agents": ["section_writer"],
   "inputs": {
     "PLAN_PATH": "output/论文_计划.md",
-    "CONTRACT_PATH": "output/验收_契约.md"
+    "CONTRACT_PATH": "output/验收_契约.md",
+    "SOURCES_MANIFEST": "output/SOURCES_MANIFEST.json"
   },
   "tasks": [
     {
       "name": "write_sections",
       "agent": "section_writer",
-      "description": "按论文计划 {PLAN_PATH} 的章节结构逐节写作全文，遵守验收契约 {CONTRACT_PATH}。三条最高纪律：1) 主题锚定——全文只围绕计划锚定的课题，禁止改写为其他课题；2) 数值纪律——计算设置与物理量只照抄数据表原文，公式只写符号不代数值；3) 雷区黑名单——禁止使用文献默认值替代数据表值，禁止换用近似值绕过。缺证据处写 <!-- DATA_NEEDED: 缺什么 --> 注释，不得编造。参考文献每条标注（待核实）。",
+      "description": "按论文计划 {PLAN_PATH} 的章节结构逐节写作全文，遵守验收契约 {CONTRACT_PATH}。三条最高纪律：1) 主题锚定——全文只围绕计划锚定的课题，禁止改写为其他课题；2) 数值纪律——计算设置与物理量只照抄数据表原文，公式只写符号不代数值；数据表等素材文件的绝对路径以素材清单 {SOURCES_MANIFEST} 的 path 字段为准，引用数值前须实际读取原文核对；3) 雷区黑名单——禁止使用文献默认值替代数据表值，禁止换用近似值绕过。缺证据处写 <!-- DATA_NEEDED: 缺什么 --> 注释，不得编造。参考文献每条标注（待核实）。",
       "expected_output": "完整论文初稿 Markdown，含全部章节；无围栏包裹。",
       "output_file": "output/论文_初稿.md"
     }

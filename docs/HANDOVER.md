@@ -26,7 +26,7 @@ $env:WRITING_FLOW_STUB='1'; & "..\.venv\Scripts\python.exe" src\writing_flow\mai
 ## 下一步：M2 真实模式联调（建议顺序）
 
 1. ~~先单段验证评审 Crew 的 JSON 稳定性~~ **✅ 已完成（2026-09-01）**：用与 Flow 同层的 `crewai.LLM` 直调（提示词镜像 `crew_review.jsonc`，评审对象为桩初稿）。结果：`deepseek/deepseek-v4-pro` 连通 4.1s，评审 5/5 解析成功（score 1-2、verdict 一致 not_ready、22-45s/次，对桩稿打分比 qwen 更严）；降级路径 `dashscope/qwen-plus` 同样 5/5（score 3-4、not_ready、约 11s/次）。停机门 `review_gate.parse_file` 全部吃得下，无需 guardrail 前置。测试脚本未入库（一次性验证），结论以本条为准。
-2. 依次联调 plan → contract → write（写作段的数值纪律条款是否真的挡住编造，用 `data/vasp_results.md` 模拟数据对照）。
+2. ~~依次联调 plan → contract → write~~ **✅ 已完成（2026-09-01）**，三段真实模式全部跑通，产物在 output/（计划 9.5KB/16 论断全绑定槽位；契约 18 断言挑战者逐字核验 16 接受 2 需修订；初稿 7 节主题锚定成功）。**两个重要发现**：① 契约挑战者/写手原配置拿不到素材路径（FileReadTool 猜路径全失败）——已在 `crew_contract.jsonc`/`crew_write.jsonc` 注入 `SOURCES_MANIFEST` 输入修复，修复后挑战者实现逐字定位核验；② 写手在"模型验证"段编造了 2 个装饰性数值（-1.32 eV 色散消融对照、0.5–0.7 eV 文献典型值，素材中均不存在），且 `validate_report` 的差值/和+两位有效数字推导规则将它们放行（1.32≈1.42−0.09、0.5≈0.51、0.7≈0.51−(−0.18)）——prompt 纪律挡不住"合理化编造"，确定性白名单存在容差盲区。其余 20+ 核心数值全部精确照抄。待全流程首跑验证 R1 评审（数值表述纪律维度）能否抓住这 2 个值；收紧推导规则有误伤风险，暂记为待权衡项。
 3. ~~改造点（M1 遗留）：R1 成立清单接线~~ **✅ 已完成（2026-09-01）**：`review_r1` 解析 R1 后即调 `review_gate.uphold_list()` 落盘成立清单（critical+major，代码裁决），桩/真实统一走此路径（原桩内置硬编码已删）；状态模型新增 `r1_upheld` 字段。桩模式回归全绿：清单在 R1 阶段生成、R2 台账按 id 对账闭合（开放 0/绕过 0）、后缀行为与 M1 基线一致。附带语义修正：旧桩把 minor 也写入清单，现按规范只留 critical+major。
 4. 评审解析失败率压不住时，回退方案是给 review_crew 的 task 加 guardrail（结构化校验 + 一次重试），CrewAI Task 层现成能力。
 5. M2 验收口径：双条件停机与 fail-closed 单测全绿；台账合成正确。
@@ -51,6 +51,9 @@ $env:WRITING_FLOW_STUB='1'; & "..\.venv\Scripts\python.exe" src\writing_flow\mai
 6. `restore_from_state_id` 未命中时**静默回退不报错**；恢复入口应先显式查询状态库（M4 实现时处理）。
 7. Windows 控制台 GBK：main.py 已强制 stdout/stderr UTF-8；新增脚本同样处理。
 8. md2pdf.py 的 pandoc/xelatex 路径硬编码 `D:\pandoc\...`、`D:\MiKTeX\...`，本机路径不符则 PDF 自动跳过（`.env` 的 `WRITING_FLOW_PDF=1` 默认注释）。
+9. crewai 1.15.10 原生 provider 有型号白名单：`dashscope/` 前缀只认 `qwen*` 型号（`dashscope/deepseek-*` 一律初始化失败，且本 venv 未装 litellm 回退包，共享 venv 勿擅自加装）；DeepSeek 系必须走原生 `deepseek/` 前缀，它读 `DEEPSEEK_API_KEY` + `DEEPSEEK_BASE_URL`，后者指到百炼兼容模式即复用现有 key。另注意原生 dashscope 默认端点是国际站 `dashscope-intl`，国内 key 必须显式 `DASHSCOPE_BASE_URL`（.env 已设）。
+10. jsonc Crew 里凡需读素材文件的任务，必须把 `SOURCES_MANIFEST` 作为输入注入并在 description 里指明"按清单 path 字段的绝对路径读取"——只给文件名时 agent 会自己猜路径（output/、/home/user/ 等），全部失败后还会把"文件不存在"当结论写进产物（M2-2 实测：契约挑战者曾因此把 14 条断言全判"证据不可得"）。plan 段传绝对路径所以没踩过。
+11. 工具层教训（两次踩中）：对同一文件的多处编辑绝不可并行发起，后写会基于旧版本覆盖前写（main.py 接线曾被覆盖丢失、HANDOVER 坑 #9 曾被覆盖丢失）——同文件多改必须串行。
 
 ## 环境与依赖
 
