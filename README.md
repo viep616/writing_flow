@@ -46,6 +46,7 @@ $env:WRITING_FLOW_STUB='1'; & "..\.venv\Scripts\python.exe" src\writing_flow\mai
 
 | 入口 | 路径 | 形态 → 模式 |
 |------|------|------------|
+| 上游·原始计算归档 | `data/upstream_handoff/`（含 `adsorption_*/…pwo`） | QE 归档→standalone，`qe_extract` 自动提取白名单表（M3） |
 | 上游交接 | `data/upstream_handoff/` + HANDOFF.md | 叙事/数据表→standalone；已成初稿→refine |
 | 独立·叙事 | `data/NARRATIVE_REPORT.md` | standalone |
 | 独立·数据 | `data/vasp_results.md`（sf6 七节模板，表中数值即白名单） | standalone |

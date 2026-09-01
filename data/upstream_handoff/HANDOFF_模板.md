@@ -12,6 +12,7 @@
 
 ## 形态判道规则（本流程侧）
 
+- 目录含 `adsorption_*/…/*.pwo`（QE 原始计算归档）→ 原始归档（standalone；`qe_extract` 确定性提取自动生成白名单数据表，README/CSV 作辅助材料入清单）
 - 文件名含 narrative/叙事 → 叙事（standalone 全新成稿）
 - 文件名含 vasp/数据 → 数据表（standalone，数值白名单源）
 - 其余 → 已成初稿（refine 精修模式，直接进入改进循环）

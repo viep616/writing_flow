@@ -12,11 +12,27 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+try:
+    import qe_extract  # main.py 已将 tools/ 挂入 sys.path
+except ImportError:  # 包内相对导入兜底
+    from . import qe_extract  # type: ignore[no-redef]
+
 MANIFEST_NAME = "SOURCES_MANIFEST.json"
 
 
 def _sha16(path: Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()[:16]
+
+
+def _find_raw_calc_root(base: Path) -> Path | None:
+    """定位原始计算归档根：base 本身或其一级子目录中含 adsorption_*/ 下 .pwo 的目录。
+    匹配 QE 归档命名规范（见 qe_extract._SYS_RE）；未命中返回 None。"""
+    if not base.is_dir():
+        return None
+    for cand in [base, *sorted(p for p in base.iterdir() if p.is_dir())]:
+        if any(cand.glob("adsorption_*/**/*.pwo")):
+            return cand
+    return None
 
 
 def _is_handoff_name(name: str) -> bool:
@@ -56,7 +72,26 @@ def run(data_dir: Path, output_dir: Path) -> dict:
         [p for p in upstream.glob("*.md") if not _is_handoff_name(p.name)] if upstream.is_dir() else []
     )
 
-    if upstream_artifacts:
+    raw_calc_root = _find_raw_calc_root(upstream)
+    if raw_calc_root is not None:
+        # 原始计算归档（QE pwo）：自动触发确定性提取 → 白名单表；README 归档说明不再误判为初稿
+        mode = "standalone"
+        handoff_md = upstream / "HANDOFF.md"
+        handoff_present = handoff_md.is_file()
+        source_ref = _source_id_from_handoff(handoff_md) if handoff_present else raw_calc_root.name
+        table = qe_extract.write_whitelist_table(
+            qe_extract.extract(raw_calc_root),
+            output_dir / "QE_数据表.md",
+            output_dir / "QE_数据表.json",
+        )
+        files.append({"role": "data", "path": str(table), "sha256": _sha16(table)})
+        for aux_name, role in (("README.md", "readme"), ("convergence_results.csv", "aux")):
+            aux = next((c for c in (raw_calc_root / aux_name, raw_calc_root.parent / aux_name) if c.is_file()), None)
+            if aux is not None:  # 归档根内部或其同级均可（两种交付摆放兼容）
+                files.append({"role": role, "path": str(aux), "sha256": _sha16(aux)})
+        files.append({"role": "raw_calc", "path": str(raw_calc_root), "sha256": ""})
+        print(f"[判道] 原始计算归档：{raw_calc_root.name}（qe_extract 已生成白名单表，HANDOFF {'有' if handoff_present else '缺失'}）")
+    elif upstream_artifacts:
         artifact = _latest(upstream_artifacts)
         form = _form_of(artifact.name)
         mode = "refine" if form == "draft" else "standalone"
