@@ -7,5 +7,6 @@
     "temperature": 0,
     "extra_body": { "enable_thinking": false }
   },
-  "tools": ["FileReadTool"]
+  "tools": ["FileReadTool"],
+  "skills": ["./skills"]
 }

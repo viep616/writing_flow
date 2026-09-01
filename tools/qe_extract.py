@@ -9,6 +9,8 @@
   - 同目录多个 pwo（重跑副本）→ 取 mtime 最新且含 JOB DONE 者；能量不一致记 duplicate_mismatch
   - E_ads 绝对值 = E(复合物)−E(基底)−E(气体)：归档中无基底/孤立气体参考计算 → DATA_NEEDED（不猜）
   - 位点稳定性 ΔE = 同管型×同材料×同气体内各位点能量差（纯代码可推导，入白名单）
+  - 分析素材（§5）：位点排序与位次（并列注明）、最优位点频次、组数/占比、收敛性汇总
+    —— 全部由代码从 §1 终态能量与 convergence_results.csv 生成，写作/审计直接引用，禁止手算
 单位：主值保留 Ry（原始口径），换算 eV 用上游 README 同口径 13.6057。
 
 用法：
@@ -18,6 +20,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import re
 import sys
@@ -34,6 +37,8 @@ _SYS_RE = re.compile(
     r"(?P<site>top|bridge|hollow)_"
     r"(?P<idx>\d{3})$"
 )
+_RANK_LABELS = ["最优", "次优", "第三优", "第四优"]
+_TIE_EV_TOL = 1e-4  # 位次并列阈值：组内能量差小于该值（eV）视为简并/并列
 
 
 def parse_pwo(path: Path) -> dict:
@@ -74,8 +79,35 @@ def _pick_pwo(dir_path: Path) -> tuple[Path, list[Path], bool]:
     return pool[-1], pwos, bool(candidates)
 
 
+def _read_convergence_csv(root: Path) -> list[dict]:
+    """读取 convergence_results.csv（有能量值的行），供 §5.5 收敛性汇总。
+    查找顺序与 prepare_inputs 的 aux 规则一致：体系根目录 → 其父目录。"""
+    csv_path = next(
+        (p for p in (Path(root) / "convergence_results.csv",
+                     Path(root).parent / "convergence_results.csv") if p.is_file()),
+        None,
+    )
+    if csv_path is None:
+        return []
+    rows = []
+    try:
+        with csv_path.open(encoding="utf-8-sig") as f:
+            for r in csv.DictReader(f):
+                if r.get("total_energy_Ry"):
+                    rows.append({
+                        "system": r.get("system", "").strip(),
+                        "ecutwfc": r.get("ecutwfc", "").strip(),
+                        "kgrid": r.get("kgrid", "").strip(),
+                        "energy_ry": r["total_energy_Ry"].strip(),
+                        "status": r.get("converged", "").strip(),
+                    })
+    except (OSError, csv.Error):
+        return []
+    return rows
+
+
 def extract(root: Path) -> dict:
-    """遍历体系目录 → {rows, malformed, not_converged, duplicates, flags}。"""
+    """遍历体系目录 → {rows, malformed, not_converged, duplicates, flags, 分析素材}。"""
     root = Path(root)
     rows, malformed, not_converged, dup_mismatch = [], [], [], []
     for dir_path in sorted(p for p in root.iterdir() if p.is_dir()):
@@ -117,9 +149,70 @@ def extract(root: Path) -> dict:
             "best_idx": best["idx"],
             "sites_ranked": [m["site"] for m in sorted(members, key=lambda r: r["final_energy_ry"])],
         })
+
+    # ---- 分析素材：位点排序/位次（并列注明）、最优位点频次、组数占比、收敛性（纯代码） ----
+    ranking: list[dict] = []
+    best_freq: dict[tuple[str, str], dict[str, int]] = {}
+    mat_best: dict[str, dict[str, int]] = {}
+    for key, members in sorted(groups.items()):
+        ordered = sorted(members, key=lambda r: (r["final_energy_ry"], r["site"]))
+        # 位次按能量层级分组：组内能量差 < _TIE_EV_TOL 视为并列，同一层级共享位次标签
+        levels: list[dict] = []
+        for m in ordered:
+            for lv in levels:
+                if abs(lv["energy"] - m["final_energy_ry"]) * RY_TO_EV < _TIE_EV_TOL:
+                    lv["members"].append(m)
+                    break
+            else:
+                levels.append({"energy": m["final_energy_ry"], "members": [m]})
+        for li, lv in enumerate(levels):
+            label = _RANK_LABELS[li] if li < len(_RANK_LABELS) else f"第{li + 1}优"
+            if len(lv["members"]) > 1:
+                label += "（并列）"
+            for m in lv["members"]:
+                m["rank_label"] = label
+        best_e = levels[0]["energy"]
+        order_txt = [f"{m['site']}({m['rank_label']})" for m in ordered]
+        ranking.append({
+            "group": f"{key[0]}/{key[1]}/{key[2]}",
+            "order": order_txt,
+            "best_site": ordered[0]["site"],
+            "best_system": ordered[0]["system"],
+        })
+        bf = best_freq.setdefault((key[1], key[2]), {})
+        bf[ordered[0]["site"]] = bf.get(ordered[0]["site"], 0) + 1
+        mb = mat_best.setdefault(key[1], {})
+        mb[ordered[0]["site"]] = mb.get(ordered[0]["site"], 0) + 1
+
+    best_freq_rows = [
+        {"material": mat, "gas": gas, "site": site, "count": cnt}
+        for (mat, gas), freq in sorted(best_freq.items())
+        for site, cnt in sorted(freq.items())
+    ]
+    site_share_rows = []
+    for mat, freq in sorted(mat_best.items()):
+        total = sum(freq.values()) or 1
+        site_share_rows.append({
+            "material": mat,
+            "top": round(freq.get("top", 0) / total * 100, 1),
+            "bridge": round(freq.get("bridge", 0) / total * 100, 1),
+            "hollow": round(freq.get("hollow", 0) / total * 100, 1),
+        })
+    n_groups_total = len(groups)
+    n_groups_doped = sum(1 for k in groups if k[1] != "pure")
+    convergence = _read_convergence_csv(root)
+
     return {
         "rows": rows, "site_deltas": deltas, "malformed": malformed,
         "not_converged": not_converged, "duplicate_mismatch": dup_mismatch,
+        "ranking": ranking, "best_freq": best_freq_rows,
+        "group_stats": {
+            "n_groups_total": n_groups_total,
+            "n_groups_doped": n_groups_doped,
+            "n_groups_pure": n_groups_total - n_groups_doped,
+        },
+        "site_share": site_share_rows,
+        "convergence": convergence,
         "extracted_at": datetime.now().isoformat(timespec="seconds"),
         "n_total": len(rows) + len(malformed) + len(not_converged),
     }
@@ -133,6 +226,7 @@ def write_whitelist_table(result: dict, out_md: Path, out_json: Path | None = No
         f"> 提取时间 {result['extracted_at']}｜体系 {len(result['rows'])}/{result['n_total']}"
         f"（未收敛 {len(result['not_converged'])}，命名不规范 {len(result['malformed'])}，副本能量不一致 {len(result['duplicate_mismatch'])}）",
         "> E_ads 绝对值缺基底/孤立气体参考计算 → DATA_NEEDED（待上游补充，禁止估算）",
+        "> §5 分析素材由代码生成（排序/位次/频次/占比/收敛性），写作与审计直接引用，禁止手算或改标位次",
         "",
         "## 1. 体系终态能量（弛豫收敛值）",
         "",
@@ -157,7 +251,39 @@ def write_whitelist_table(result: dict, out_md: Path, out_json: Path | None = No
               "| 未收敛体系 | " + ("；".join(result["not_converged"]) or "无") + " |",
               "| 命名不规范 | " + ("；".join(result["malformed"]) or "无") + " |",
               "| 副本能量不一致 | " + ("；".join(result["duplicate_mismatch"]) or "无") + " |",
-              "| 单位换算 | 1 Ry = 13.6057 eV（上游 README 口径） |", ""]
+              "| 单位换算 | 1 Ry = 13.6057 eV（上游 README 口径） |", "",
+              "## 5. 分析素材（代码生成，禁止手算/改写）", "",
+              "> 本节由 qe_extract 从 §1 终态能量与 convergence_results.csv 确定性生成；"
+              "论文中的位点排序、位次、频次、占比与收敛性数值必须直接引用本节，禁止自行统计、重新计算或改标位次。", "",
+              "### 5.1 组内位点排序（稳→不稳，并列注明）", "",
+              "| 组 | 排序 | 最优位点 | 最优体系 |", "|----|------|---------|---------|"]
+    for r in result.get("ranking", []):
+        lines.append(f"| {r['group']} | {' > '.join(r['order'])} | {r['best_site']} | {r['best_system']} |")
+    lines += ["", "### 5.2 组内能差（ΔE 相对组内最优）", "",
+              "| 体系 | ΔE | 单位 | 位次 |", "|------|-----|------|------|"]
+    for r in result["rows"]:
+        lines.append(f"| {r['system']} | {r['delta_to_best_ev']} | eV | {r.get('rank_label', '')} |")
+    lines += ["", "### 5.3 最优位点频次（材料×气体，跨手性合计）", "",
+              "| 掺杂 | 气体 | 最优位点 | 出现次数 | 单位 |", "|------|------|---------|---------|------|"]
+    for r in result.get("best_freq", []):
+        lines.append(f"| {r['material']} | {r['gas']} | {r['site']} | {r['count']} | 次 |")
+    gs = result.get("group_stats", {})
+    lines += ["", "### 5.4 组数与占比", "",
+              "| 类别 | 数值 | 单位 |", "|------|------|------|",
+              f"| 体系总数 | {result['n_total']} | 个 |",
+              f"| 入白名单体系数 | {len(result['rows'])} | 个 |",
+              f"| 组总数（管型×掺杂×气体） | {gs.get('n_groups_total', 0)} | 组 |",
+              f"| 掺杂体系组数 | {gs.get('n_groups_doped', 0)} | 组 |",
+              f"| 纯体系组数 | {gs.get('n_groups_pure', 0)} | 组 |", "",
+              "| 掺杂 | top 占比 | bridge 占比 | hollow 占比 | 单位 |",
+              "|------|-----------|-------------|-------------|------|"]
+    for r in result.get("site_share", []):
+        lines.append(f"| {r['material']} | {r['top']} | {r['bridge']} | {r['hollow']} | % |")
+    lines += ["", "### 5.5 收敛性测试汇总（来自 convergence_results.csv）", "",
+              "| 体系 | 参数 | 总能量 | 状态 |", "|------|------|--------|------|"]
+    for r in result.get("convergence", []):
+        lines.append(f"| {r['system']} | ecut{r['ecutwfc']}/k{r['kgrid']} | {r['energy_ry']} Ry | {r['status']} |")
+    lines.append("")
     out_md = Path(out_md)
     out_md.parent.mkdir(parents=True, exist_ok=True)
     out_md.write_text("\n".join(lines), encoding="utf-8")

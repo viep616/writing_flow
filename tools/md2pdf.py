@@ -78,11 +78,16 @@ def _strip_revision_notes(text: str) -> str:
     )
 
 
-def insert_figures(md_path: Path, figures: list[tuple[str, str]]) -> bool:
-    """把图表插入论文 md。幂等：文中已含 figures/ 引用则跳过。
+_FIG_MARKER_RE = re.compile(r"<!--\s*FIG:\s*([A-Za-z0-9_\-]+)\s*-->")
+_FIG_REF_RE = re.compile(r"图\s*(\d+)\s*[:：]")
 
-    图片用空 alt（![](path)）避免 pandoc 生成浮动 figure 环境，
-    图注以下一段斜体文字呈现，位置完全固定、紧跟表格。
+
+def insert_figures(md_path: Path, figures: list[tuple[str, str]]) -> bool:
+    """把图表插入论文 md——优先按正文锚点（图文结合），无锚点回退到节首/文末。
+
+    锚点约定：正文中讨论某图的段落后写 `<!-- FIG:<文件名不含扩展名> -->`，
+    此处替换为 `![](figures/<文件>)` + 斜体图注（图注由 qe_charts 程序生成，不经过 LLM）。
+    幂等：文中已含 figures/ 引用则跳过。
     """
     if not figures or not md_path.is_file():
         return False
@@ -90,31 +95,56 @@ def insert_figures(md_path: Path, figures: list[tuple[str, str]]) -> bool:
     if "figures/" in text or "figures\\" in text:
         print("[插图] 论文已包含图表引用，跳过")
         return False
-    block = "\n\n" + "\n\n".join(
-        f"![](figures/{fn})\n\n*{cap}*" for fn, cap in figures
-    ) + "\n"
-    m = ANCHOR_RE.search(text)
-    if not m:
+    by_stem = {Path(fn).stem: (fn, cap) for fn, cap in figures}
+    placed: set[str] = set()
+
+    def _replace(m: re.Match) -> str:
+        stem = m.group(1)
+        if stem not in by_stem:
+            return m.group(0)  # 无对应图：保留原标记（fail-safe，不吞掉正文）
+        fn, cap = by_stem[stem]
+        placed.add(stem)
+        return f"\n\n![](figures/{fn})\n\n*{cap}*\n"
+
+    text = _FIG_MARKER_RE.sub(_replace, text)
+    if placed:
+        print(f"[插图] 已按正文锚点插入 {len(placed)}/{len(figures)} 张图（图文结合）")
+
+    pending = [(fn, cap) for stem, (fn, cap) in by_stem.items() if stem not in placed]
+    if pending:
+        # 第二层：按正文"图 N"引用就近锚定（先引后述）——跳过 HTML 注释内的误匹配
+        lines = text.splitlines(keepends=True)
+        in_comment = False
+        ref_pos: dict[int, int] = {}  # 图号 → 行索引（首次正文引用）
+        for i, line in enumerate(lines):
+            starts = "<!--" in line
+            ends = "-->" in line
+            if starts:
+                in_comment = True
+            if not in_comment:
+                m = _FIG_REF_RE.search(line)
+                if m:
+                    ref_pos.setdefault(int(m.group(1)), i)
+            if ends:
+                in_comment = False
+        anchored: list[tuple[int, tuple[str, str]]] = []
+        for n, (fn, cap) in enumerate(pending, start=1):
+            # 图号 = 传入顺序（qe_charts 固定 图1..图4）；若正文有显式编号也可用
+            pos = ref_pos.get(n)
+            if pos is not None:
+                anchored.append((pos, (fn, cap)))
+        if anchored:
+            for pos, (fn, cap) in sorted(anchored, reverse=True):
+                block = f"\n\n![](figures/{fn})\n\n*{cap}*\n"
+                lines.insert(pos + 1, block)
+            text = "".join(lines)
+            print(f"[插图] 已按正文「图 N」引用就近插入 {len(anchored)}/{len(pending)} 张图（图文结合·引用锚定）")
+            pending = [(fn, cap) for n, (fn, cap) in enumerate(pending, start=1)
+                       if ref_pos.get(n) is None]
+    if pending:
+        block = "\n\n" + "\n\n".join(f"![](figures/{fn})\n\n*{cap}*" for fn, cap in pending) + "\n"
         text = text.rstrip("\n") + "\n" + block
-        print("[插图] 未找到「结果与讨论」标题，图表已追加至文末")
-    else:
-        rest = text[m.end():]
-        lines = rest.splitlines(keepends=True)
-        # 扫描范围：本节内（到下一个标题行为止）
-        section_end = next((k for k, l in enumerate(lines) if l.lstrip().startswith("#")), len(lines))
-        # 锚点：节内第一个表格块之后；无表格则紧跟标题
-        insert_at = 0
-        k = 0
-        while k < section_end:
-            if lines[k].lstrip().startswith("|"):
-                while k < section_end and lines[k].lstrip().startswith("|"):
-                    k += 1
-                insert_at = k
-                break
-            k += 1
-        pos = m.end() + sum(len(l) for l in lines[:insert_at])
-        text = text[:pos] + block + text[pos:]
-        print(f"[插图] 已插入 {len(figures)} 张图至「结果与讨论」节")
+        print(f"[插图] 无正文引用图 {len(pending)} 张已追加至文末")
     md_path.write_text(text, encoding="utf-8")
     return True
 

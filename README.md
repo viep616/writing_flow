@@ -26,6 +26,7 @@ writing_flow/
 │   ├── validate_report.py       # ↓ 以下三个回收自 sf6 初探
 │   ├── make_charts.py
 │   └── md2pdf.py
+├── skills/qe-analysis-report/   # 写作技能（qe-analysis-report：输出规范/分析素材规范/图文结合，挂载 4 个写作/评审/审计 agent）
 ├── data/                        # 输入三入口：NARRATIVE_REPORT / vasp_results / upstream_handoff
 └── output/                      # 全部工件 + 时间戳留档（git 不入库）
 ```
@@ -73,6 +74,7 @@ $env:WRITING_FLOW_STUB='1'; & "..\.venv\Scripts\python.exe" src\writing_flow\mai
 
 - **M1 已完成**：骨架直通（判道→规划→契约→写作→两轮循环→致命一击→审计→投稿门→留档），桩模式全链路验证通过
 - **M2 已完成（2026-09-01）**：评审模型迁移 v4-pro（稳定性 5/5）、R1 成立清单接线、写作段三段联调、真实模式全流程首跑（终态 overall=no，后缀全链留痕）、guardrail 兜底上线（确定性校验+一次重试）、验收单测 14/14 全绿（`tests/`，零依赖自运行：`& ..\.venv\Scripts\python.exe tests\test_m2_acceptance.py`）。首跑共产出 12 项缺陷修复（含投稿门三处 fail-open），全部固化为回归用例。可选收尾：二跑冲全绿
+- **M5 技能集成与图文结合（2026-09-01）**：写作技能 qe-analysis-report 接入 skills/（jsonc "skills": ["./skills"] 挂载 section_writer/reviser/cross_reviewer/claim_auditor，Flow 拓扑零改动）；qe_extract 新增 §5 分析素材（位点排序/位次含并列/频次/组数占比/收敛性汇总，代码生成禁止手算）；md2pdf.insert_figures 图文结合双通道（<!-- FIG:xxx --> 锚点 + 正文"图 N"引用锚定）；写作任务新增聚合统计纪律与配图纪律。全量回归 30/30。
 - **决策点待裁**：评审家族合规（若纯千问，设 WRITING_FLOW_REVIEWER_FAMILY=qwen 降级，结论标 provisional）；上游契约六条与队友确认
 
 ## 工程约定
