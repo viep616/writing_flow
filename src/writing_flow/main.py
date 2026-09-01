@@ -90,6 +90,7 @@ class ArisPaperState(BaseModel):
     stamp: str = ""
     mode: str = "standalone"          # standalone | refine
     source_ref: str = ""              # 素材溯源：上游 HANDOFF 的 state.id 或文件名
+    topic_anchor: str = ""            # 课题锚定（上游 HANDOFF 指定；空则由素材自行提炼）
     stage_status: dict = {}           # 阶段 → running/done/failed/skipped（幂等依据）
     contract_status: str = "pending"  # pending | accepted | contested
     review_scores: list = []          # R1/R2 综合分轨迹
@@ -224,6 +225,7 @@ class PaperFlow(Flow[ArisPaperState]):
         info = prepare_inputs.run(BASE_DIR / "data", OUTPUT_DIR)
         self.state.mode = info["mode"]
         self.state.source_ref = info["source_ref"]
+        self.state.topic_anchor = info.get("topic_anchor", "")
         if not info["handoff_present"] and info["mode"] == "refine":
             self.state.human_flags.append("交接不完整")
         self._mark("load_inputs", "done")
@@ -236,7 +238,7 @@ class PaperFlow(Flow[ArisPaperState]):
         if STUB:
             _stub_plan()
         else:
-            _kick("crew_plan.jsonc", {"SOURCES_MANIFEST": str(OUTPUT_DIR / "SOURCES_MANIFEST.json")})
+            _kick("crew_plan.jsonc", {"SOURCES_MANIFEST": str(OUTPUT_DIR / "SOURCES_MANIFEST.json"), "TOPIC_ANCHOR": self.state.topic_anchor})
         self._mark("paper_plan", "done")
 
     # ---------- F3 验收契约谈判（≤2 轮） ----------

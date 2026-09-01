@@ -7,3 +7,7 @@ output/
 .appdata/
 .venv/
 *.db
+
+# 上游交接区：素材不入库（同仓直写契约），仅保留 HANDOFF 模板
+data/upstream_handoff/*
+!data/upstream_handoff/HANDOFF_模板.md

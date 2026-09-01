@@ -3,7 +3,7 @@
   "agents": ["claim_auditor"],
   "inputs": {
     "DRAFT_PATH": "output/论文_初稿.md",
-    "DATA_PATH": "data/vasp_results.md"
+    "DATA_PATH": ""
   },
   "tasks": [
     {

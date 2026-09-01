@@ -42,18 +42,20 @@ def test_raw_calc_handoff():
         handoff = data / "upstream_handoff"
         root = _mk_archive(handoff)
         (handoff / "HANDOFF.md").write_text(
-            "# HANDOFF\n- state.id: qe-run-001\n- generated_at: 2026-09-01T18:00:00\n- artifacts: QE归档\n",
+            "# HANDOFF\n- state.id: qe-run-001\n- generated_at: 2026-09-01T18:00:00\n"
+            "- 课题锚定：Pt 系掺杂碳纳米管对 SF₆ 分解气体的吸附与传感机制\n- artifacts: QE归档\n",
             encoding="utf-8",
         )
         manifest = prepare_inputs.run(data, out)
         assert manifest["mode"] == "standalone"                    # 不再误判 refine（核心回归点）
         assert manifest["source_ref"] == "qe-run-001"              # state.id 溯源
+        assert manifest["topic_anchor"].startswith("Pt 系掺杂")    # 课题锚定透传（M3-④）
         assert manifest["handoff_present"] is True
         roles = {f["role"]: Path(f["path"]) for f in manifest["files"]}
         assert roles["data"].name == "QE_数据表.md" and roles["data"].is_file()   # 白名单表已生成
         assert "-2140.04939365" in roles["data"].read_text(encoding="utf-8")     # 能量值入表
         assert roles["readme"].name == "README.md" and roles["aux"].name.endswith(".csv")
-        assert roles["raw_calc"] == root
+        assert manifest["raw_calc_root"] == str(root)            # 原始目录留档溯源，不入素材清单（M3-④）
         assert prepare_inputs.current_data_file(out) == roles["data"]            # 审计白名单源指向生成表
 
 
@@ -92,6 +94,14 @@ def test_draft_refine_regression():
         (data / "历史终稿.md").write_text("# 初稿", encoding="utf-8")
         manifest = prepare_inputs.run(data, out)
         assert manifest["mode"] == "refine" and manifest["files"][0]["role"] == "draft"
+
+
+def test_topic_anchor_parse():
+    with tempfile.TemporaryDirectory() as d:
+        h = Path(d) / "HANDOFF.md"
+        h.write_text("# H\n- state.id: x1\n- 课题锚定：Pt 掺杂 CNT 吸附机制\n", encoding="utf-8")
+        assert prepare_inputs.topic_anchor_from_handoff(h) == "Pt 掺杂 CNT 吸附机制"
+        assert prepare_inputs.topic_anchor_from_handoff(Path(d) / "无.md") == ""  # 缺文件空锚定
 
 
 if __name__ == "__main__":

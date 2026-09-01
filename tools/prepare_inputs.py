@@ -61,11 +61,22 @@ def _source_id_from_handoff(handoff_md: Path) -> str:
     return m.group(1) if m else ""
 
 
+def topic_anchor_from_handoff(handoff_md: Path) -> str:
+    """解析 HANDOFF 的「课题锚定」行（上游指定写作段锚定课题；空则由素材自行提炼）。"""
+    try:
+        text = handoff_md.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    m = re.search(r"课题锚定[:：]\s*(.+)", text)
+    return m.group(1).strip() if m else ""
+
+
 def run(data_dir: Path, output_dir: Path) -> dict:
     data_dir = Path(data_dir)
     output_dir = Path(output_dir)
     files: list = []  # [{role, path, sha256}]
     mode, source_ref, handoff_present = "standalone", "", False
+    raw_calc_root_ref = ""
 
     upstream = data_dir / "upstream_handoff"
     upstream_artifacts = (
@@ -89,7 +100,9 @@ def run(data_dir: Path, output_dir: Path) -> dict:
             aux = next((c for c in (raw_calc_root / aux_name, raw_calc_root.parent / aux_name) if c.is_file()), None)
             if aux is not None:  # 归档根内部或其同级均可（两种交付摆放兼容）
                 files.append({"role": role, "path": str(aux), "sha256": _sha16(aux)})
-        files.append({"role": "raw_calc", "path": str(raw_calc_root), "sha256": ""})
+        # 原始输出目录只留档溯源（manifest 顶层字段），不入素材清单——
+        # M3-④ 实测：目录条目会诱导规划师读 94×4.5MB pwo，上下文撑爆后臆造体系名
+        raw_calc_root_ref = str(raw_calc_root)
         print(f"[判道] 原始计算归档：{raw_calc_root.name}（qe_extract 已生成白名单表，HANDOFF {'有' if handoff_present else '缺失'}）")
     elif upstream_artifacts:
         artifact = _latest(upstream_artifacts)
@@ -130,6 +143,8 @@ def run(data_dir: Path, output_dir: Path) -> dict:
         "mode": mode,
         "source_ref": source_ref,
         "handoff_present": handoff_present,
+        "topic_anchor": topic_anchor_from_handoff(data_dir / "upstream_handoff" / "HANDOFF.md"),
+        "raw_calc_root": raw_calc_root_ref,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "files": files,
     }

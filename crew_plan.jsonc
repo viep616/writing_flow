@@ -2,13 +2,14 @@
   // F2 论文规划：从素材包产出 claims-evidence 矩阵与章节结构
   "agents": ["paper_planner"],
   "inputs": {
-    "SOURCES_MANIFEST": "output/SOURCES_MANIFEST.json"
+    "SOURCES_MANIFEST": "output/SOURCES_MANIFEST.json",
+    "TOPIC_ANCHOR": ""
   },
   "tasks": [
     {
       "name": "make_paper_plan",
       "agent": "paper_planner",
-      "description": "读取素材清单 {SOURCES_MANIFEST} 及其指向的素材文件，产出论文计划：1) claims-evidence 矩阵（表格：论断 | 证据来源槽位 | 证据是否可得 | 预期落点章节），每条论断必须绑定一个证据槽位，证据不可得的标记 DATA_NEEDED；2) 5-8 节章节结构；3) 图表计划（只声明所需图型，不生成图）。",
+      "description": "读取素材清单 {SOURCES_MANIFEST} 及其指向的素材文件，产出论文计划：1) claims-evidence 矩阵（表格：论断 | 证据来源槽位 | 证据是否可得 | 预期落点章节），每条论断必须绑定一个证据槽位，证据不可得的标记 DATA_NEEDED；2) 5-8 节章节结构；3) 图表计划（只声明所需图型，不生成图）。课题锚定（上游 HANDOFF 指定，为空则以素材内容自行提炼并同样严格锚定）：{TOPIC_ANCHOR}。若素材为 QE 计算数据表，其体系名编码规则为 adsorption_{手性管型}_{掺杂材料}_{气体}_{吸附位点}_{编号}（如 6,6_armchair/PtN/SO2F2/bridge），数据表第 2 节已按管型×材料×气体分组给出位点稳定性，可直接绑定作证据槽位。硬性约束：证据槽位必须引用素材清单文件中真实存在的条目（数据表中的真实体系名、分组行或 README 参数），禁止通配符、禁止清单/数据表之外的体系名与物理量。",
       "expected_output": "Markdown 文档，含上述三部分；矩阵中不得出现素材之外的数值。",
       "output_file": "output/论文_计划.md"
     }
