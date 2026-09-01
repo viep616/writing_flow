@@ -10,7 +10,7 @@
 ## 当前状态
 
 - **M1 骨架直通：完成**。桩模式（`WRITING_FLOW_STUB=1`，不调 LLM）全链路验证通过：判道 → 规划 → 契约 → 写作 → R1（未达标走修复分支）→ 修订 → R2（台账闭合）→ 致命一击（WARN，代码映射）→ 数值复核（findings=0）→ 投稿门（五项全 pass，overall=provisional）→ 留档（后缀 `_致命一击未过` + 转人工标记）。两条路由分支、后缀合成、@persist 快照全部按设计工作。
-- **`.env` 已配好**：DASHSCOPE_API_KEY 复制自 sf6_writing_crew（团队同一 key），BASE_URL 已设。注意：该 key 下 **deepseek-v3 是否可调尚未实测**，M2 第一步先验证。
+- **`.env` 已配好**：DASHSCOPE_API_KEY 复制自 sf6_writing_crew（团队同一 key），BASE_URL 已设。**2026-09-01 更新**：百炼公告全系旧 DeepSeek（v3/v3.1/v3.2/r1）2026-10-10 下架，评审系三角色已迁移 `deepseek/deepseek-v4-pro`，经 crewai 原生 `deepseek/` 前缀 + `.env` 的 `DEEPSEEK_API_KEY`（同 DASHSCOPE key）与 `DEEPSEEK_BASE_URL`（指向百炼兼容模式）路由；连通性与评审 JSON 稳定性已实测（见下）。
 - git 两个提交：`ea0df6a`（骨架）→ `494f91d`（plot 导出修复）。master 即可用版本，大改前打 tag。
 
 ## 怎么跑
@@ -25,7 +25,7 @@ $env:WRITING_FLOW_STUB='1'; & "..\.venv\Scripts\python.exe" src\writing_flow\mai
 
 ## 下一步：M2 真实模式联调（建议顺序）
 
-1. **先单段验证评审 Crew 的 JSON 稳定性**（技术方案判定的最大风险点）：单独 load `crew_review.jsonc` 跑 3-5 次，看 `评审_原文_R*.txt` 能否稳定产出可解析 JSON；deepseek-v3 调不通就先测降级路径（`.env` 加 `WRITING_FLOW_REVIEWER_FAMILY=qwen`，注意结论会标 provisional）。
+1. ~~先单段验证评审 Crew 的 JSON 稳定性~~ **✅ 已完成（2026-09-01）**：用与 Flow 同层的 `crewai.LLM` 直调（提示词镜像 `crew_review.jsonc`，评审对象为桩初稿）。结果：`deepseek/deepseek-v4-pro` 连通 4.1s，评审 5/5 解析成功（score 1-2、verdict 一致 not_ready、22-45s/次，对桩稿打分比 qwen 更严）；降级路径 `dashscope/qwen-plus` 同样 5/5（score 3-4、not_ready、约 11s/次）。停机门 `review_gate.parse_file` 全部吃得下，无需 guardrail 前置。测试脚本未入库（一次性验证），结论以本条为准。
 2. 依次联调 plan → contract → write（写作段的数值纪律条款是否真的挡住编造，用 `data/vasp_results.md` 模拟数据对照）。
 3. **改造点（M1 遗留）**：R1 成立清单目前由桩内置生成；真实模式下应改为 `review_r1` 阶段解析 R1 后调用 `review_gate.uphold_list()` 生成（函数已写好，在 `tools/review_gate.py`，接线即可）。
 4. 评审解析失败率压不住时，回退方案是给 review_crew 的 task 加 guardrail（结构化校验 + 一次重试），CrewAI Task 层现成能力。
@@ -56,7 +56,7 @@ $env:WRITING_FLOW_STUB='1'; & "..\.venv\Scripts\python.exe" src\writing_flow\mai
 
 - Python 3.10-3.13 / Windows；复用 `C:\Users\王雨露\Desktop\挑战杯\.venv`（crewai==1.15.10 + crewai-tools，pyproject 已锁定同版本）。
 - 若需独立环境：仓库根目录 `crewai install` 后 `crewai run`（pyproject `[tool.crewai] type="flow"` 已配）。
-- 模型矩阵：执行 qwen-plus / 评审 deepseek-v3（跨家族）/ 裁决 qwen3.8-max 零温度，全部经 dashscope 兼容模式；配置全在 `agents/*.jsonc`，改模型不碰代码。
+- 模型矩阵：执行 qwen-plus / 评审 deepseek-v4-pro（跨家族，经百炼兼容模式）/ 裁决 qwen3.8-max 零温度；配置全在 `agents/*.jsonc`，改模型不碰代码。
 
 ## 相关资料索引
 
