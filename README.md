@@ -17,6 +17,8 @@ writing_flow/
 │   ├── verdict_map.py           # 致命一击 verdict 计数表映射（代码裁决，不信模型自评）
 │   ├── ledger.py                # 义务台账（append-only，删句绕过检测）
 │   ├── verify_gates.py          # 投稿门五项检查 → overall 三态
+│   ├── qe_extract.py            # QE pwo → 白名单数据表（M3，确定性提取零 LLM）
+│   ├── task_guardrails.py       # Crew/审计任务 guardrail（jsonc {"python": ...} 接线）
 │   ├── archive.py               # 时间戳留档 + 后缀合成
 │   ├── validate_report.py       # ↓ 以下三个回收自 sf6 初探
 │   ├── make_charts.py
