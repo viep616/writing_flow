@@ -36,11 +36,19 @@ $env:WRITING_FLOW_STUB='1'; & "..\.venv\Scripts\python.exe" src\writing_flow\mai
 
 | # | 决策点 | 阻塞 | 默认状态 |
 |---|--------|------|---------|
-| 1 | 评审家族是否引入 DeepSeek（与「全千问合规」口径的权衡） | M2 实际开跑 | 默认已配 deepseek；降级开关在 .env |
-| 2 | 上游契约六条与前部队友确认（交接目录/产物形态/HANDOFF 字段/触发方式/溯源互认/合并节奏） | M4 衔接验收 | 清单见产品方案第 7 节 |
+| 1 | 评审家族是否引入 DeepSeek（与「全千问合规」口径的权衡） | ~~M2 实际开跑~~ | ✅ 已定 deepseek-v4-pro（跨家族实测 5/5，2026-09-01）；降级开关在 .env |
+| 2 | 上游契约六条与前部队友确认（交接目录/产物形态/HANDOFF 字段/触发方式/溯源互认/合并节奏） | M4 衔接验收 | **部分确认（2026-09-01）**：交接目录=data/upstream_handoff/、触发=同仓直写、上游产物=QE 计算结果（见下节勘察）；待定：HANDOFF 字段细则、溯源互认、QE 形态适配 |
 | 3 | 引用三轴审计是否从 P1 提前（论文需带文献引用则提前） | 视情况 | 当前仅「待核清单」占位 |
-| 4 | 仓库独立 vs 并入总项目仓做单仓多 Flow | 长期 | 当前独立仓 |
-| 5 | sf6 工具抽公共包 or 继续整文件拷贝 | 低 | 当前拷贝进 tools/ |
+| 4 | 仓库独立 vs 并入总项目仓做单仓多 Flow | 长期 | ✅ 已定：最终与前部 Flow 合并单仓多 Flow（2026-09-01）；合并前保持独立仓开发 |
+| 5 | sf6 工具抽公共包 or 继续整文件拷贝 | 低 | 当前拷贝进 tools/；合并单仓时再议 |
+
+### 上游契约确认进展与 QE 材料勘察（2026-09-01）
+
+用户裁决：上游产物为 **QE（Quantum ESPRESSO）计算结果**，队友目录 `D:\QE计算结果\QE计算结果`；交接目录 `data/upstream_handoff/`；触发方式同仓直写；最终两段 Flow 合并单仓。勘察结论：
+
+- 结构：`原训练集_94体系/`（94 个吸附体系 pwi+pwo，命名 `adsorption_{管型}_{材料}_{气体}_{位点}_{编号}`，Pt/PtPd/PtN 掺杂 × H₂S/SO₂/SOF₂/SO₂F₂/SF₆ × top/bridge/hollow × 6,6/8,0 手性）+ `convergence_test/`（9 个 SCF）+ `convergence_results.csv` + `README.md`（参数表与 pwo 读取方法：总能 `! total energy =` 行、E_ads=E(复合物)−E(基底)−E(气体)、1 Ry=13.6057 eV）。备注：原设计 133 体系，余 39 个在算；Au/Rh 外推集 14 结构在算。**物理体系与 M2 联调用的 VASP/SWNT-OH 素材不同**。
+- 判道演练（临时目录实测）：README.md 被 `_form_of` 误判 draft → **refine 模式**（错误：会把归档说明当初稿精修）；CSV 与子目录不进清单（glob 仅 *.md）；HANDOFF 的 state.id 溯源字段链路正常。
+- **M3 工作项（QE 形态适配）**：① 新增确定性提取工具（如 `tools/qe_extract.py`）：从 pwo 提取收敛总能 → 按公式算 E_ads → 生成白名单格式数据表（数值代码裁决，不信 LLM 读原始输出）；② `prepare_inputs` 形态扩展（"原始计算归档"型 → standalone 数据源，README/CSV 入清单）；③ `validate_report.build_whitelist` 适配 QE 表格格式与单位（Ry/eV）；④ 课题锚定需切换（Pt 系掺杂 CNT，非 SWNT-OH）。
 
 ## 已知坑（踩过的，别再踩）
 
