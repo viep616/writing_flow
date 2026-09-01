@@ -411,6 +411,20 @@ class PaperFlow(Flow[ArisPaperState]):
     @listen(verify_gates)
     def finalize(self):
         self._mark("finalize", "running")
+        # QE 数据配图（M4：确定性出图，零 LLM；图与图注均程序生成后锚点插入，幂等）
+        if not STUB and (OUTPUT_DIR / "QE_数据表.json").is_file():
+            try:
+                import qe_charts
+
+                figures = qe_charts.generate(
+                    OUTPUT_DIR / "QE_数据表.json",
+                    DATA_DIR / "upstream_handoff" / "convergence_results.csv",
+                    OUTPUT_DIR / "figures",
+                )
+                if md2pdf is not None and figures:
+                    md2pdf.insert_figures(DRAFT_FILE, figures)
+            except Exception as exc:  # noqa: BLE001 —— 配图失败不阻断留档
+                print(f"[插图] qe_charts 失败（不阻断）：{exc}")
         snap = json.loads((OUTPUT_DIR / "RUN_STATE.json").read_text(encoding="utf-8"))
         snap["gate_results"] = dict(self.state.gate_results)
         snap["overall"] = self.state.overall
