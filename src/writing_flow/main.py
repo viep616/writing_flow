@@ -96,6 +96,7 @@ class ArisPaperState(BaseModel):
     review_verdicts: list = []        # ready | almost | not_ready
     review_passed: bool = False       # review_gate 双条件判定结果（最近一轮）
     review_parse_error: bool = False
+    r1_upheld: list = []              # R1 成立弱点清单（critical+major），review_r1 阶段代码生成
     reviewer_family: str = REVIEWER_FAMILY
     provisional: bool = False         # 同家族降级评审标记
     kill_verdict: str = ""            # PASS|WARN|FAIL|BLOCKED|NOT_APPLICABLE
@@ -230,6 +231,9 @@ class PaperFlow(Flow[ArisPaperState]):
         parsed = review_gate.parse_file(OUTPUT_DIR / "评审_原文_R1.txt")
         gate = review_gate.decide(parsed)
         _save_review_record(1, parsed, gate)
+        # R1 成立清单（critical+major）由代码从 R1 解析结果生成 → R2 注入核验 + 台账合成底稿；
+        # 桩/真实统一走此路径（M1 遗留接线：原先桩内置、真实模式缺失）
+        self.state.r1_upheld = review_gate.uphold_list(parsed, OUTPUT_DIR)
         self.state.review_scores.append(parsed.get("score"))
         self.state.review_verdicts.append(parsed.get("verdict", ""))
         self.state.review_parse_error = gate["parse_error"]
@@ -411,14 +415,6 @@ def _stub_review(round_no: int) -> None:
                 {"id": "w3", "status": "addressed"},
             ],
         }
-        # R2 同时产出 R1 成立清单（台账合成底稿）
-        upheld = [{"id": w["id"], "desc": w["desc"], "severity": w["severity"]} for w in [
-            {"id": "w1", "severity": "critical", "desc": "结论表述超出数据支持范围"},
-            {"id": "w2", "severity": "major", "desc": "图表与正文数值引用未一一对应"},
-            {"id": "w3", "severity": "minor", "desc": "术语混用"},
-        ]]
-        _write(OUTPUT_DIR / "评审_R1成立清单.md", "\n".join(f"- {u['id']} [{u['severity']}] {u['desc']}" for u in upheld) + "\n")
-        _write(OUTPUT_DIR / "评审_R1成立清单.json", json.dumps(upheld, ensure_ascii=False, indent=2))
     _write(OUTPUT_DIR / f"评审_原文_R{round_no}.txt", "```json\n" + json.dumps(payload, ensure_ascii=False, indent=2) + "\n```\n")
 
 

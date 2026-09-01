@@ -66,7 +66,7 @@ $env:WRITING_FLOW_STUB='1'; & "..\.venv\Scripts\python.exe" src\writing_flow\mai
 ## 状态
 
 - **M1 已完成**：骨架直通（判道→规划→契约→写作→两轮循环→致命一击→审计→投稿门→留档），桩模式全链路验证通过
-- **M2 进行中**：评审模型已迁移 `deepseek/deepseek-v4-pro`（百炼 2026-10-10 下架全系旧 DeepSeek），连通性与评审 JSON 稳定性实测 5/5（降级路径 qwen 同过，2026-09-01，详见 HANDOVER）；待办：R1 成立清单接线（review_r1 阶段生成，当前桩内置）、guardrail 兜底重试、验收单测（tests/ 尚空）
+- **M2 进行中**：评审模型已迁移 `deepseek/deepseek-v4-pro`（百炼 2026-10-10 下架全系旧 DeepSeek），连通性与评审 JSON 稳定性实测 5/5（降级路径 qwen 同过，2026-09-01）；R1 成立清单已接线（review_r1 阶段代码生成，桩/真实统一）；待办：写作段联调、guardrail 兜底重试、验收单测（tests/ 尚空）
 - **决策点待裁**：评审家族合规（若纯千问，设 WRITING_FLOW_REVIEWER_FAMILY=qwen 降级，结论标 provisional）；上游契约六条与队友确认
 
 ## 工程约定

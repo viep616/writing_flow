@@ -27,7 +27,7 @@ $env:WRITING_FLOW_STUB='1'; & "..\.venv\Scripts\python.exe" src\writing_flow\mai
 
 1. ~~先单段验证评审 Crew 的 JSON 稳定性~~ **✅ 已完成（2026-09-01）**：用与 Flow 同层的 `crewai.LLM` 直调（提示词镜像 `crew_review.jsonc`，评审对象为桩初稿）。结果：`deepseek/deepseek-v4-pro` 连通 4.1s，评审 5/5 解析成功（score 1-2、verdict 一致 not_ready、22-45s/次，对桩稿打分比 qwen 更严）；降级路径 `dashscope/qwen-plus` 同样 5/5（score 3-4、not_ready、约 11s/次）。停机门 `review_gate.parse_file` 全部吃得下，无需 guardrail 前置。测试脚本未入库（一次性验证），结论以本条为准。
 2. 依次联调 plan → contract → write（写作段的数值纪律条款是否真的挡住编造，用 `data/vasp_results.md` 模拟数据对照）。
-3. **改造点（M1 遗留）**：R1 成立清单目前由桩内置生成；真实模式下应改为 `review_r1` 阶段解析 R1 后调用 `review_gate.uphold_list()` 生成（函数已写好，在 `tools/review_gate.py`，接线即可）。
+3. ~~改造点（M1 遗留）：R1 成立清单接线~~ **✅ 已完成（2026-09-01）**：`review_r1` 解析 R1 后即调 `review_gate.uphold_list()` 落盘成立清单（critical+major，代码裁决），桩/真实统一走此路径（原桩内置硬编码已删）；状态模型新增 `r1_upheld` 字段。桩模式回归全绿：清单在 R1 阶段生成、R2 台账按 id 对账闭合（开放 0/绕过 0）、后缀行为与 M1 基线一致。附带语义修正：旧桩把 minor 也写入清单，现按规范只留 critical+major。
 4. 评审解析失败率压不住时，回退方案是给 review_crew 的 task 加 guardrail（结构化校验 + 一次重试），CrewAI Task 层现成能力。
 5. M2 验收口径：双条件停机与 fail-closed 单测全绿；台账合成正确。
 
