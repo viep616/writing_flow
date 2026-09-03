@@ -218,6 +218,53 @@ def extract(root: Path) -> dict:
     }
 
 
+def attach_eads(result: dict, eads_csv: Path) -> dict:
+    """把 eads_summary.csv（上游 E_ads 全量表）附加进提取结果，并交叉复核（代码裁决）。
+
+    - 复核①：csv 的 E_ads_eV 与 (E_complex−E_sub−E_gas)×13.6057 重算值差 > 0.0005 eV → row.flag
+    - 复核②：csv 的 E_complex_Ry 与本工具从 pwo 提取的终态能量差 > 1e-6 Ry → row.flag（防 csv 与原始输出脱节）
+    - 正值 E_ads（弛豫至排斥态，如 127 的 +12.69 eV）→ anomalous 标记，保留不剔除（论文须如实呈现）
+    - 参考能量（8 基底 + 5 气体）唯一值提取为 refs，供白名单表 §6
+    """
+    import csv as _csv
+
+    rows_by_system = {r["system"]: r for r in result["rows"]}
+    refs: dict[str, float] = {}
+    n_attached, n_flags, anomalous = 0, [], []
+    with open(eads_csv, encoding="utf-8-sig") as fh:
+        for row in _csv.DictReader(fh):
+            system = row.get("system", "")
+            try:
+                e_ads = float(row["E_ads_eV"])
+                e_c, e_s, e_g = (float(row["E_complex_Ry"]), float(row["E_sub_frozen_Ry"]), float(row["E_gas_Ry"]))
+            except (KeyError, ValueError, TypeError):
+                continue
+            # 参考能量归集（基底按 chirality+material，气体按 gas）
+            refs[f"基底 {row.get('chirality','')}/{row.get('material','')} (frozen)"] = e_s
+            refs[f"孤立气体 {row.get('gas','')}"] = e_g
+            recalc = (e_c - e_s - e_g) * RY_TO_EV
+            flags = []
+            if abs(recalc - e_ads) > 5e-4:
+                flags.append(f"E_ads复核偏差(重算{recalc:.4f})")
+            r = rows_by_system.get(system)
+            if r is not None and abs(r["final_energy_ry"] - e_c) > 1e-6:
+                flags.append(f"E_complex与pwo不一致(pwo={r['final_energy_ry']:.8f})")
+            if e_ads > 0:
+                anomalous.append(system)
+            if r is not None:
+                r["e_ads_ev"] = e_ads
+                r["e_ads_anomalous"] = e_ads > 0
+                if flags:
+                    r["e_ads_flags"] = "；".join(flags)
+                    n_flags += 1
+                n_attached += 1
+    result["eads"] = {
+        "attached": n_attached, "flags": n_flags, "anomalous": anomalous,
+        "refs": refs, "source": str(eads_csv),
+    }
+    return result
+
+
 def write_whitelist_table(result: dict, out_md: Path, out_json: Path | None = None) -> Path:
     """生成白名单格式数据表（三列：量 | 值 | 单位——validate_report.build_whitelist 兼容结构）。"""
     lines = [
@@ -284,6 +331,32 @@ def write_whitelist_table(result: dict, out_md: Path, out_json: Path | None = No
     for r in result.get("convergence", []):
         lines.append(f"| {r['system']} | ecut{r['ecutwfc']}/k{r['kgrid']} | {r['energy_ry']} Ry | {r['status']} |")
     lines.append("")
+    # §6-§8：E_ads 全量（上游参考计算解除 DATA_NEEDED 后，由 attach_eads 注入；编号接续 §5，勿动 §1-§5 编号）
+    eads = result.get("eads")
+    if eads:
+        lines += [
+            "", "## 6. E_ads 全量表（E_complex−E_sub−E_gas，上游 eads_summary，本工具已逐行复核）", "",
+            "| 体系 | E_ads | 单位 |", "|------|-------|------|",
+        ]
+        for r in result["rows"]:
+            if "e_ads_ev" in r:
+                mark = " ⚠正值(排斥态)" if r.get("e_ads_anomalous") else ""
+                lines.append(f"| {r['system']} | {r['e_ads_ev']:.4f}{mark} | eV |")
+        lines += ["", "## 7. 参考能量（E_ads 公式参考项）", "", "| 参考体系 | 能量 | 单位 |", "|------|------|------|"]
+        for name, val in sorted(eads["refs"].items()):
+            lines.append(f"| {name} | {val:.8f} | Ry |")
+        lines += [
+            "", "## 8. E_ads 复核与异常声明", "",
+            f"- 附加 {eads['attached']} 体系；复核标记 {eads['flags']} 条；正值异常 {len(eads['anomalous'])} 个"
+            "（弛豫至排斥态的构型，保留不剔除，论文须如实标注）：",
+            "  " + ("；".join(eads["anomalous"]) or "无"), "",
+        ]
+        flagged = [r for r in result["rows"] if r.get("e_ads_flags")]
+        for r in flagged:
+            lines.append(f"- ⚠ {r['system']}：{r['e_ads_flags']}")
+        if not flagged:
+            lines.append("- 全部体系 E_ads 重算一致，E_complex 与 pwo 终态能量一致 ✓")
+        lines.append("")
     out_md = Path(out_md)
     out_md.parent.mkdir(parents=True, exist_ok=True)
     out_md.write_text("\n".join(lines), encoding="utf-8")

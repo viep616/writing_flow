@@ -92,16 +92,30 @@ def run(data_dir: Path, output_dir: Path) -> dict:
         handoff_md = upstream / "HANDOFF.md"
         handoff_present = handoff_md.is_file()
         source_ref = _source_id_from_handoff(handoff_md) if handoff_present else raw_calc_root.name
+        extraction = qe_extract.extract(raw_calc_root)
+        # E_ads 全量表（上游参考计算解除 DATA_NEEDED 后）：附加进白名单表并逐行复核（代码裁决）
+        eads_csv = next((c for c in (upstream / "eads_summary.csv", raw_calc_root / "eads_summary.csv") if c.is_file()), None)
+        if eads_csv is not None:
+            qe_extract.attach_eads(extraction, eads_csv)
+            print(f"[判道] E_ads 全量表已附加：{eads_csv.name}（复核 {extraction['eads']['flags']} 条标记，"
+                  f"正值异常 {len(extraction['eads']['anomalous'])} 个）")
         table = qe_extract.write_whitelist_table(
-            qe_extract.extract(raw_calc_root),
+            extraction,
             output_dir / "QE_数据表.md",
             output_dir / "QE_数据表.json",
         )
         files.append({"role": "data", "path": str(table), "sha256": _sha16(table)})
-        for aux_name, role in (("README.md", "readme"), ("convergence_results.csv", "aux")):
-            aux = next((c for c in (raw_calc_root / aux_name, raw_calc_root.parent / aux_name) if c.is_file()), None)
+        for aux_name, role in (("README.md", "readme"), ("convergence_results.csv", "aux"),
+                               ("eads_summary.md", "aux")):
+            aux = next((c for c in (upstream / aux_name, raw_calc_root / aux_name, raw_calc_root.parent / aux_name)
+                        if c.is_file()), None)
             if aux is not None:  # 归档根内部或其同级均可（两种交付摆放兼容）
                 files.append({"role": role, "path": str(aux), "sha256": _sha16(aux)})
+        # 机器学习线交付文档（ml_docs/）：作为 doc 角色素材供规划/写作引用（课题双线：DFT + MACE）
+        ml_docs = upstream / "ml_docs"
+        if ml_docs.is_dir():
+            for doc in sorted(list(ml_docs.glob("*.md")) + list(ml_docs.glob("*.csv"))):
+                files.append({"role": "doc", "path": str(doc), "sha256": _sha16(doc)})
         # 原始输出目录只留档溯源（manifest 顶层字段），不入素材清单——
         # M3-④ 实测：目录条目会诱导规划师读 94×4.5MB pwo，上下文撑爆后臆造体系名
         raw_calc_root_ref = str(raw_calc_root)
